@@ -5,7 +5,7 @@ Catch.df <- melt(Catch, value.name = 'catch') %>%
   left_join(tibble(spp, price, cost)) %>%
   left_join(melt(wt_at_rec, value.name = 'weight')) %>%
   mutate(profit = ifelse(catch > 0, catch * weight * price - cost, 0)) %>%
-  head()
+  as_tibble
 
 filter(Catch.df) %>%
   ggplot() +
