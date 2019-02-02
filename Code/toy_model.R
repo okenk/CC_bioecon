@@ -1,5 +1,6 @@
 require(dplyr)
 require(mvtnorm)
+require(optimx)
 
 set.seed(8902809)
 
@@ -28,34 +29,89 @@ pop_seasons['salmon', 18] <- 0.3
 pop_seasons['salmon', 47] <- 0.7
 pop_seasons['salmon', 48:wks_per_yr] <- 0;
 
-catchability <- c(.07, .01);
+catchability <- c(.0012, .00005); # these need to go down
 # proportion of stock that will be caught by one fleet/ship during one week
 # of fishing
 
 price <- c(1, 1)
 avg_rec <- c(1, 1)
-names(catchability) <- names(price) <- names(avg_rec) <- spp
+avg_wt <- c(1,1)
+
+weight_cv <- 0.2
+recruit_cv <- 0.2
+
+names(catchability) <- names(price) <- names(avg_rec) <- names(avg_wt) <- spp
 
 Catch <- array(0, dim = c(npops, nyrs, wks_per_yr, nfleets), 
                dimnames = list(spp = spp, yr = NULL, wk = NULL, fleet = fleets))
 N <- array(0, dim = c(npops, nyrs, wks_per_yr), dimnames = list(spp = spp, yr = NULL, wk = NULL))
-N[,,1] <- rmvnorm(nyrs, mean = log(avg_rec), sd = c(.2, .2)) %>% 
+N[,,1] <- rmvnorm(nyrs, mean = log(avg_rec), sigma = recruit_cv * diag(2)) %>% 
   t %>% 
   exp
 # recruit CV = 20%
 
-wt_at_rec <- rlnorm(npops*nyrs) %>% 
-  matrix(nrow = npops, ncol = nyrs, dimnames = list(spp = spp, yr = NULL))
+wt_at_rec <- rmvnorm(nyrs, mean = log(avg_rec), sigma = weight_cv * diag(2)) %>% 
+  t %>%
+  exp
 # Right now: white noise, independence between stocks. 
 # To do: correlation in time and between stocks.
 
-salmon_tac <- N['salmon',,1] * 0.1
-# TAC for troll fishery is 10% of recruitment? (arbitrary) 
+
+salmon_tac_rule <- 0.3
+salmon_tac <- N['salmon',,1] * salmon_tac_rule
+# TAC for troll fishery is 30% of recruitment? (arbitrary) 
 
 avg_rev <- numeric(2)
 names(avg_rev) <- spp
-avg_rev['crab'] <- avg_rec['crab'] * price['crab'] / 
+avg_rev['crab'] <- avg_rec['crab'] * price['crab'] * avg_wt['crab']/ 
   (ships_per_fleet['crab'] + ships_per_fleet['both'])
+avg_rev['salmon'] <-  salmon_tac_rule * price['salmon'] * avg_wt['salmon'] /
+  (ships_per_fleet['salmon'] + ships_per_fleet['both'])
+
+fixed_costs <- c(0.6, 0.1) * avg_rev
+# crab 30% of revenue, salmon 10% of revenue
+cost_per_trip <- NA
+
+calc_var_cost <- function(cost_vec, recruits, wt_at_rec, fishing_season, in_season_dpltn, 
+                          fleet_size, fixed_costs, catchability) {
+  cost_per_trip <- exp(cost_vec[1])
+  fixed_costs <- exp(cost_vec[2]) + cost_per_trip
+  N <- numeric(wks_per_yr)
+  N[1] <- recruits
+  variable_costs <- revenue <- numeric(fleet_size)
+  Catch <- matrix(0, nrow = wks_per_yr, ncol = fleet_size)
+  scale_param <- (0.05 * cost_per_trip) / qlogis(0.95)
+  for(wk in 1:wks_per_yr) { # put x price and catchability back in!
+    exp_profit <- N[wk] * wt_at_rec * catchability  - cost_per_trip
+    prob_fishing <- plogis(exp_profit, scale = scale_param)
+    # if(wk==1) print(prob_fishing)
+    nfishers <- round(prob_fishing * fleet_size, 0)
+    did_fish <- c(rep(1, nfishers),
+                  rep(0, fleet_size - nfishers))
+    variable_costs <- variable_costs + did_fish * cost_per_trip
+    Catch[wk,] <- did_fish * catchability * N[wk]
+    revenue <- revenue + Catch[wk,] * wt_at_rec * price
+    
+    if(wk < wks_per_yr)
+      N[wk+1] <- ifelse(in_season_dpltn,
+                        N[wk] - sum(Catch[wk,]),
+                        N[wk])
+  }
+  # print(sum(Catch))
+  # print(paste(mean(variable_costs), fixed_costs))
+  return((mean(revenue - variable_costs) - fixed_costs)^2 + 
+           (.3 * mean(revenue) - fixed_costs)^2 -
+           sum(Catch))
+}
+
+xx <- optimx(fn = calc_var_cost, par = c(-10, -5), upper= c(0,0), lower = c(-15, -10), method = "L-BFGS-B",
+             recruits = 1, wt_at_rec = 1, 
+             fishing_season = pop_seasons['crab',], in_season_dpltn = TRUE, fleet_size = 200, 
+             fixed_costs = fixed_costs['crab'], catchability = .0008)
+
+uniroot(calc_var_cost, interval = c(-20,0), recruits = 1, wt_at_rec = 1, 
+        fishing_season = pop_seasons['salmon',], in_season_dpltn = FALSE, fleet_size = 200, 
+        fixed_costs = fixed_costs['salmon'])
 
 for(yr in 1:nyrs) {
   for(wk in 1:wks_per_yr) {
@@ -68,44 +124,4 @@ for(yr in 1:nyrs) {
   }
 }
 
-# I need:
-# CV wt_at_rec
-# CV recruitment
-# Figure out units. What parameters actually drive dynamics/which can be fixed to 1?
-# E.g., if response variables of interested are all related to catch, then catchability and biomass influence results jointly, never separately
-# (But, separately could be useful when thinking about ecological scenarios down the road)
-# Better understand prices and costs
-# Better understand dynamics of fishing through season, esp. for salmon, for tuning
-
-# Farther down the road:
-# Add groundfish (sablefish-ish?)
-# Correlation structure to stochastic components
-# Once you switch gears you don't go back
-
-# fixed cost is per season (capital of boat, annual maintenance, permits
-# important because will allow people to operate at a loss
-
-# extra normal profit (rent): more profit than a normal return on investment, like
-# the stock market, when it's positive people entry fishery, use their licenses
-# in a normal year, profits should cover costs just barely
-
-# what is the avg revenue? e.g., set the price to 1. You know what the avg. total
-# revenue is. Then choose a fleet size. Either have more than 3 in fleet or allow
-# for fractions. Dan says easier to make fleet discrete. 
-# On an avg year given total catch, divided evenly among vessels, fixed costs are
-# 1/4 or total revenue and 3/4 of revenue is variable costs. No more than 1/3.
-# For salmon maybe 1/10. 
-
-# Prop. fixed to variable costs could be a model parameter that varies by fishery.
-# Start with equal sized fleets. 
-
-# permit price should increase to soak up extra profit. we won't model unidirectional
-# change, something that is variable but not directionally so. so then we won't 
-# let permit price vary. 
-
-# at the start of the season you have fleet, they get signal of recruitment,
-# some of the less profitable ones realize they won't make it, don't enter.
-# for now say they know recruitment perfectly, and assume the same   number of vessels that 
-# fished last year.
-# Something that I should pay attention to: one fishery is more capital intensive
-
+save.image(file = 'code/base_conditions.RData')
