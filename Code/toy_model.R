@@ -29,7 +29,7 @@ pop_seasons['salmon', 18] <- 0.3
 pop_seasons['salmon', 47] <- 0.7
 pop_seasons['salmon', 48:wks_per_yr] <- 0;
 
-catchability <- c(.0012, .00005); # these need to go down
+catchability <- c(.0008, .00005); # these need to go down
 # proportion of stock that will be caught by one fleet/ship during one week
 # of fishing
 
@@ -68,21 +68,20 @@ avg_rev['crab'] <- avg_rec['crab'] * price['crab'] * avg_wt['crab']/
 avg_rev['salmon'] <-  salmon_tac_rule * price['salmon'] * avg_wt['salmon'] /
   (ships_per_fleet['salmon'] + ships_per_fleet['both'])
 
-fixed_costs <- c(0.6, 0.1) * avg_rev
+fixed_costs <- c(0.3, 0.1) * avg_rev
 # crab 30% of revenue, salmon 10% of revenue
 cost_per_trip <- NA
 
-calc_var_cost <- function(cost_vec, recruits, wt_at_rec, fishing_season, in_season_dpltn, 
-                          fleet_size, fixed_costs, catchability) {
-  cost_per_trip <- exp(cost_vec[1])
-  fixed_costs <- exp(cost_vec[2]) + cost_per_trip
+calc_var_cost <- function(log_cost_per_trip, recruits, wt_at_rec, fishing_season, in_season_dpltn, 
+                          fleet_size, fixed_costs, catchability, price) {
+  cost_per_trip <- exp(log_cost_per_trip)
   N <- numeric(wks_per_yr)
   N[1] <- recruits
   variable_costs <- revenue <- numeric(fleet_size)
   Catch <- matrix(0, nrow = wks_per_yr, ncol = fleet_size)
-  scale_param <- (0.05 * cost_per_trip) / qlogis(0.95)
-  for(wk in 1:wks_per_yr) { # put x price and catchability back in!
-    exp_profit <- N[wk] * wt_at_rec * catchability  - cost_per_trip
+  scale_param <- (0.25 * cost_per_trip) / qlogis(0.95)
+  for(wk in 1:wks_per_yr) { 
+    exp_profit <- N[wk] * wt_at_rec * price * catchability  - cost_per_trip
     prob_fishing <- plogis(exp_profit, scale = scale_param)
     # if(wk==1) print(prob_fishing)
     nfishers <- round(prob_fishing * fleet_size, 0)
@@ -97,31 +96,25 @@ calc_var_cost <- function(cost_vec, recruits, wt_at_rec, fishing_season, in_seas
                         N[wk] - sum(Catch[wk,]),
                         N[wk])
   }
-  # print(sum(Catch))
-  # print(paste(mean(variable_costs), fixed_costs))
-  return((mean(revenue - variable_costs) - fixed_costs)^2 + 
-           (.3 * mean(revenue) - fixed_costs)^2 -
-           sum(Catch))
+  print(sum(Catch))
+  print(paste(mean(variable_costs), fixed_costs))
+  return(mean(revenue - variable_costs) - fixed_costs)
 }
+xx <- uniroot(calc_var_cost, interval = c(-20, 0),
+              recruits = 1, wt_at_rec = 1, price = 1,
+              fishing_season = pop_seasons['crab',], in_season_dpltn = TRUE, fleet_size = 200, 
+              fixed_costs = .0015, catchability = .0008)
 
-xx <- optimx(fn = calc_var_cost, par = c(-10, -5), upper= c(0,0), lower = c(-15, -10), method = "L-BFGS-B",
-             recruits = 1, wt_at_rec = 1, 
-             fishing_season = pop_seasons['crab',], in_season_dpltn = TRUE, fleet_size = 200, 
-             fixed_costs = fixed_costs['crab'], catchability = .0008)
 
-uniroot(calc_var_cost, interval = c(-20,0), recruits = 1, wt_at_rec = 1, 
-        fishing_season = pop_seasons['salmon',], in_season_dpltn = FALSE, fleet_size = 200, 
-        fixed_costs = fixed_costs['salmon'])
-
-for(yr in 1:nyrs) {
-  for(wk in 1:wks_per_yr) {
-    exp_util <- rbind(matrix(exp(N[,yr,wk] * wt_at_rec[,yr] * catchability * price - cost) * pop_seasons[,wk], nrow = npops, ncol = nfleets) * fleet_permits, 1)
-    prob_fishing <- exp_util / matrix(apply(exp_util, 2, sum), nrow = npops+1, ncol = nfleets, byrow = TRUE)
-    Catch[,yr,wk,] <- prob_fishing[1:npops,] * catchability * N[,yr,wk]
-    if(wk < wks_per_yr) {
-      N[,yr,wk+1] <- N[,yr,wk] - apply(Catch[,yr,wk,], 1, sum)
-    }
-  }
-}
+# for(yr in 1:nyrs) {
+#   for(wk in 1:wks_per_yr) {
+#     exp_util <- rbind(matrix(exp(N[,yr,wk] * wt_at_rec[,yr] * catchability * price - cost) * pop_seasons[,wk], nrow = npops, ncol = nfleets) * fleet_permits, 1)
+#     prob_fishing <- exp_util / matrix(apply(exp_util, 2, sum), nrow = npops+1, ncol = nfleets, byrow = TRUE)
+#     Catch[,yr,wk,] <- prob_fishing[1:npops,] * catchability * N[,yr,wk]
+#     if(wk < wks_per_yr) {
+#       N[,yr,wk+1] <- N[,yr,wk] - apply(Catch[,yr,wk,], 1, sum)
+#     }
+#   }
+# }
 
 save.image(file = 'code/base_conditions.RData')
