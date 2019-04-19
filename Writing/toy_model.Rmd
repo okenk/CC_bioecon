@@ -3,7 +3,8 @@ title: "Toy model description"
 output: html_notebook
 ---
 
-There are `r nfleets` fleets with `r ships_per_fleet[1]` "ships" each. The fleets carry permits for crabs, salmon, or both crabs and salmon. The legal crab season lasts the first `r which(pop_seasons['crab',] != 0 & pop_seasons['crab',] != 1)` weeks of the year (Dec. 1 - Aug. 14). The legal salmon season lasts from week `r which(pop_seasons['salmon',] != 0 & pop_seasons['salmon',] != 1)[1]` to `r which(pop_seasons['salmon',] != 0 & pop_seasons['salmon',] != 1)[2]` (May 1 - Oct. 31). Price per unit weight of crab and salmon, average recruitment of crab and salmon, and average weight per individual are all scaled to 1. Note that prices are assumed to be fixed. In the future, the stocks do not have to be equal with respect to these variables, and we will likely only acheive realistic dynamics by changing this. CVs of growth and recruitment are both set to 20% for both stocks. Recruitment and weight at recruitment are simulated from a lognormal distribution that can, in the future, include covariance among stocks and/or years. Weekly variable costs for each ship in the fleet follow a lognormal distribution with a 15% CV. Variable costs are correlated by ship. That is, if a ship can cheaply fish for crab, it can also cheaply fish for salmon. Right now the correlation on the log scale is `r cost_corr`, but that is arbitrary. The salmon TAC is `r salmon_tac_rule` of the pre-season population size. Could instead define TAC as N - escapement goal? There is no TAC for crabs.
+## The model
+There are `r nfleets` fleets with `r ships_per_fleet[1]` "ships" each. The fleets carry permits for crabs, salmon, or both crabs and salmon. The legal crab season lasts the first `r which(pop_seasons['crab',] != 0 & pop_seasons['crab',] != 1)` weeks of the year (Dec. 1 - Aug. 14). The legal salmon season lasts from week `r which(pop_seasons['salmon',] != 0 & pop_seasons['salmon',] != 1)[1]` to `r which(pop_seasons['salmon',] != 0 & pop_seasons['salmon',] != 1)[2]` (May 1 - Oct. 31). Price per unit weight of crab and salmon, average recruitment of crab and salmon, and average weight per individual are all scaled to 1. Note that prices are assumed to be fixed (this may be a problem for crabs in particular). CVs of growth and recruitment are both set to 20% for both stocks. Recruitment and weight at recruitment are simulated from a lognormal distribution that can, in the future, include covariance among stocks and/or years. Weekly variable costs for each ship in the fleet follow a lognormal distribution with a 15% CV. Variable costs are correlated by ship. That is, if a ship can cheaply fish for crab, it can also cheaply fish for salmon. Right now the correlation on the log scale is `r cost_corr`, but that is arbitrary. The salmon TAC is `r salmon_tac_rule` of the pre-season population size. Could instead define TAC as N - escapement goal? There is no TAC for crabs.
 
 <!-- Fixed costs for the year (assumed to be constant in time) are calculated as 30% of average crab revenue and 10% of average salmon revenue. For crab, average revenue is calculated as the product of average weight, average recruitment, and price, divided by the number of ships targeting that stock (i.e., single permit fleet size plus dual permit fleet size). This assumes all recruits to the fishery are caught in an average year. Note this never *actually* happens, because only a fraction of the remaining stock is caught each week. For salmon, that quantity is further multiplied by the proportion of recruitment at which the total allowable catch (TAC) is set, assumed to be `r salmon_tac_rule`. This assumes that the entire TAC is caught in an average year (which can actually happen). -->
 
@@ -14,7 +15,33 @@ For simplicity (for now?), this was done independently for the two fisheries, an
 
 To avoid monte carlo error during root finding, instead of *simulating* a variable cost for each ship, I divided the unit interval into evenly spaced sub-intervals equal to the number of ships, and calculated the inverse CDF of the lognormal distribution at each quantile. The value of the inverse CDF at a given quantile was assumed to be that ship's weekly cost of fishing.
 
-Fishers were not assumed to interfere with one another and catch rates within a week are independent of the numbers of vessels fishing. I am currently modeling in-season depletion for both populations. The accounting is much easier if I am consistent between the two populations, and only 20% of the salmon population is caught in a season anyway so it shouldn't make a huge difference either way. There is no natural mortality. Catchability, which I define as the proportion of the available stock that is caught by one "ship" in one week, is modeled as constant. (This means catch rates go down through the season.) Right now, catchability for crab assumes `r catchability['crab'] * sum(ships_per_fleet[c('crab', 'both')]) * 100`% of crab recruits are caught in the first week. Catchability is `r catchability[1]/catchability[2]` times lower for salmon (i.e., `r catchability[1]/catchability[2]` times fewer individuals caught per ship per week given the same population size). Note that you should only adjust catchability or average recruitment and fix the other parameter because they have the same effect.
+Fishers were not assumed to interfere with one another and catch rates within a week are independent of the numbers of vessels fishing. Each week, ships choose which fishery to participate in, if any, based on: 1) whether they have a permit and the fishery is open, 2) whether the expected profit ($Rev_w - \text{variable cost}_\text{ship}$) is greater than zero, and 3) if both fisheries are options based on factors (1) and (2), which fishery has the greater profit. I am currently modeling in-season depletion for both populations. The accounting is much easier if I am consistent between the two populations, and on average only
+`r filter(Catch.df, spp == 'salmon') %>%
+  group_by(yr) %>%
+  summarize(total.catch = sum(catch), rec = first(recruitment)) %>%
+  mutate(prop.caught = total.catch / rec) %>%
+  with(mean(prop.caught)) %>%
+  round(2)*100`% of the population is caught in a season, so there is not a ton of depletion happening. There is no natural mortality. Catchability, which I define as the proportion of the available stock that is caught by one "ship" in one week, is modeled as constant. (This means catch rates go down through the season.) Right now, catchability for crab assumes `r catchability['crab'] * sum(ships_per_fleet[c('crab', 'both')]) * 100`% of crab recruits are caught in the first week. Catchability is `r catchability[1]/catchability[2]` times lower for salmon (i.e., `r catchability[1]/catchability[2]` times fewer individuals caught per ship per week given the same population size). Note that you should only adjust catchability or average recruitment and fix the other parameter because they have the same effect.
+
+## Thoughts/Results
+Here is a plot of catches in weight through the year where each line is one of 50 different years. Recruitment and weight at recruitment are randomly simulated each year. The weekly variable costs for each ship are constant across the simulation. You can see in years of poorer productivity, more ships leave the fishery before it closes, seen by the non-linear decline in catches. (Linear decline is due to in season depletion.)
+```{r, echo = FALSE}
+filter(Catch.df, catch > 0) %>%
+  ggplot() +
+  geom_line(aes(x=wk, y=catch*wt_at_rec, group=yr, col = recruitment), alpha = .5) +
+  # geom_point(aes(x=wk, y=catch*wt_at_rec, group=yr), cex = .1,alpha = .5) +
+  facet_grid(spp ~ fleet, scales = 'free_y') +
+  # ylim(0, .05) +
+  NULL
+
+```
+My understanding is crab prices go up through the season as catch rates go down. In order to keep the crab fishery going past the first ~month at any significant rate (if this is desired) I think we need to model prices as a function of catch. This will also get a larger portion of crab recruitment caught, as right now it is rather low. Current average across years is 
+`r filter(Catch.df, spp == 'salmon') %>%
+  group_by(yr) %>%
+  summarize(total.catch = sum(catch), rec = first(recruitment)) %>%
+  mutate(prop.caught = total.catch / rec) %>%
+  with(mean(prop.caught)) %>%
+  round(3)`.
 
 
 ```{r, include=FALSE}

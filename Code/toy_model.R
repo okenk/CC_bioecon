@@ -1,32 +1,35 @@
 library(dplyr)
 library(mvtnorm)
-
+Rcpp::sourceCpp("Code/getBestSpp.cpp")
 
 # Model parameters --------------------------------------------------------
 
-spp <- c('crab', 'salmon')
+spp.names <- c('crab', 'salmon')
 fleets <- c('crab', 'salmon', 'both')
 
 wks_per_yr <- 52
 nyrs <- 50
-npops <- length(spp)
+npops <- length(spp.names)
 nfleets <- length(fleets)
 ships_per_fleet <- c(1, 1, 1) * 100
 fleet_permits <- matrix(c(1, 0, 0, 1, 1, 1), nrow=2, byrow=FALSE, 
-                        dimnames = list(spp = spp, fleet = fleets))
+                        dimnames = list(spp = spp.names, fleet = fleets))
 names(ships_per_fleet) <- fleets
 
-pop_seasons <- matrix(1, nrow = npops, ncol = wks_per_yr, dimnames = list(spp = spp, wk = NULL))
+pop_seasons <- matrix(1, nrow = npops, ncol = wks_per_yr, dimnames = list(spp = spp.names, wk = NULL))
 
 # crab (spp. 1) season = Dec. 1 - Aug. 14
 # Assume yr starts Dec. 1
-pop_seasons['crab', 37] <- 0.7
+pop_seasons['crab', 37] <- 1
+# pop_seasons['crab', 37] <- 0.7
 pop_seasons['crab', 38:wks_per_yr] <- 0
 
 # salmon (spp. 2) season = May 1 - Oct. 31 (actually more complicated)
 pop_seasons['salmon', 1:21] <- 0
-pop_seasons['salmon', 22] <- 0.3
-pop_seasons['salmon', 47] <- 0.7
+# pop_seasons['salmon', 22] <- 0.3
+pop_seasons['salmon', 22] <- 0
+pop_seasons['salmon', 47] <- 1
+# pop_seasons['salmon', 47] <- 0.7
 pop_seasons['salmon', 48:wks_per_yr] <- 0;
 
 catchability <- c(.001, .00005); # these need to go down
@@ -45,7 +48,7 @@ cost_per_trip <- rep(NA, 2)
 cost_cv <- sqrt(log(.15^2+1))
 cost_corr <- 0.8
 
-names(catchability) <- names(price) <- names(avg_rec) <- names(avg_wt) <- names(fixed_costs) <- names(cost_per_trip) <- spp
+names(catchability) <- names(price) <- names(avg_rec) <- names(avg_wt) <- names(fixed_costs) <- names(cost_per_trip) <- spp.names
 
 salmon_tac_rule <- 0.3
 
@@ -116,18 +119,18 @@ profits <- array(-t(fleet_permits) %*% fixed_costs, dim = c(nfleets, max(ships_p
   aperm(c(2,3,1))
 
 Catch <- array(0, dim = c(npops, nyrs, wks_per_yr, nfleets), 
-               dimnames = list(spp = spp, yr = NULL, wk = NULL, fleet = fleets))
+               dimnames = list(spp = spp.names, yr = NULL, wk = NULL, fleet = fleets))
 
-N <- array(0, dim = c(npops, nyrs, wks_per_yr), dimnames = list(spp = spp, yr = NULL, wk = NULL))
-N[,,1] <- rmvnorm(nyrs, mean = log(avg_rec), sigma = recruit_cv * diag(npops)) %>% 
-  t %>% 
+N <- array(0, dim = c(npops, nyrs, wks_per_yr), dimnames = list(spp = spp.names, yr = NULL, wk = NULL))
+N[,,1] <- rmvnorm(nyrs, mean = log(avg_rec), sigma = recruit_cv * diag(npops)) %>%
+  t %>%
   exp
 # recruit CV = 20%
 
 wt_at_rec <- rmvnorm(nyrs, mean = log(avg_rec), sigma = weight_cv * diag(npops)) %>% 
   t %>%
   exp
-dimnames(wt_at_rec) <- list(spp = spp, yr = NULL)
+dimnames(wt_at_rec) <- list(spp = spp.names, yr = NULL)
 # Right now: white noise, independence between stocks. 
 # To do: correlation in time and between stocks.
 
@@ -136,7 +139,7 @@ salmon_tac <- N['salmon',,1] * salmon_tac_rule
 
 # simulate cost per trip for each ship in each fleet
 cost_by_ship <- array(0, dim = c(max(ships_per_fleet), nfleets, npops), 
-                      dimnames = list(ships = NULL, fleet = fleets, spp = spp))
+                      dimnames = list(ships = NULL, fleet = fleets, spp = spp.names))
 sigma_mat <- matrix(cost_corr*cost_cv^2, nrow = npops, ncol = npops)
 diag(sigma_mat) <- cost_cv^2
 
@@ -151,6 +154,7 @@ cost_by_ship[cost_by_ship==0] <- NA
 
 # Run model! --------------------------------------------------------------
 
+# Years can be parallelized.
 for(yr in 1:nyrs) {
   temp_catchability <- catchability
   for(wk in 1:wks_per_yr) {
@@ -163,25 +167,28 @@ for(yr in 1:nyrs) {
       
       exp_profit <- exp_rev - cost_by_ship
       
-      best_spp <- apply(exp_profit, c(1,2), function(ship) ifelse(max(ship, na.rm=TRUE) > 0, 
-                                                                  which.max(ship), NA))
+      best_spp <- apply(exp_profit, 2, getBestSpp)
       # returns index of most profitable stock for each ship, or NA if no stock is profitable. Slow step!
       
       if(any(!is.na(best_spp))) {
         ships_per_stock <- apply(best_spp, 2, tabulate, nbins = npops)
       } else {
-        matrix(0, nrow = npops, ncol = nfleets)
+        ships_per_stock <- matrix(0, nrow = npops, ncol = nfleets)
       }
       # counts up number of ships fishing each stock
-
-      profits[,yr,] <- profits[,yr,] + apply(exp_profit, c(1,2), function(ship) max(c(ship, 0), na.rm = TRUE))
-      # actual profits are for the stock with max expected profit, if max is > 0. Kind of slow.
       
-      Catch[,yr,wk,] <-  t(t(ships_per_stock * temp_catchability * N[,yr,wk]) %*% diag(wt_at_rec[,yr]))
+      this_year_profit <- matrix(0, nrow = max(ships_per_fleet), ncol = nfleets)
+      for(spp in 1:npops) {
+        this_year_profit <- pmax(this_year_profit, exp_profit[,,spp], na.rm = TRUE)
+      }
+      profits[,yr,] <- profits[,yr,] + this_year_profit
+      # actual profits are for the stock with max expected profit, if max is > 0. 
+      
+      Catch[,yr,wk,] <-  ships_per_stock * temp_catchability * N[,yr,wk]
     } else {
       Catch[,yr,wk,] <- 0
     }
-    
+
     if(wk < wks_per_yr) {
       N[,yr,wk+1] <- N[,yr,wk] - apply(Catch[,yr,wk,], 1, sum)
     }
