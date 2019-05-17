@@ -21,7 +21,8 @@ Fishers were not assumed to interfere with one another and catch rates within a 
   summarize(total.catch = sum(catch), rec = first(recruitment)) %>%
   mutate(prop.caught = total.catch / rec) %>%
   with(mean(prop.caught)) %>%
-  round(2)*100`% of the population is caught in a season, so there is not a ton of depletion happening. There is no natural mortality. Catchability, which I define as the proportion of the available stock that is caught by one "ship" in one week, is modeled as constant. (This means catch rates go down through the season.) Right now, catchability for crab assumes `r catchability['crab'] * sum(ships_per_fleet[c('crab', 'both')]) * 100`% of crab recruits are caught in the first week. Catchability is `r catchability[1]/catchability[2]` times lower for salmon (i.e., `r catchability[1]/catchability[2]` times fewer individuals caught per ship per week given the same population size). Note that you should only adjust catchability or average recruitment and fix the other parameter because they have the same effect.
+  round(2)*100`
+% of the population is caught in a season, so there is not a ton of depletion happening. There is no natural mortality. Catchability, which I define as the proportion of the available stock that is caught by one "ship" in one week, is modeled as constant. (This means catch rates go down through the season.) Right now, catchability for crab assumes `r catchability['crab'] * sum(ships_per_fleet[c('crab', 'both')]) * 100`% of crab recruits are caught in the first week. Catchability is `r catchability[1]/catchability[2]` times lower for salmon (i.e., `r catchability[1]/catchability[2]` times fewer individuals caught per ship per week given the same population size). Note that you should only adjust catchability or average recruitment and fix the other parameter because they have the same effect.
 
 ## Thoughts/Results
 Here is a plot of catches in weight through the year where each line is one of 50 different years. Recruitment and weight at recruitment are randomly simulated each year. The weekly variable costs for each ship are constant across the simulation. You can see in years of poorer productivity, more ships leave the fishery before it closes, seen by the non-linear decline in catches. (Linear decline is due to in season depletion.)
@@ -36,13 +37,14 @@ filter(Catch.df, catch > 0) %>%
 
 ```
 My understanding is crab prices go up through the season as catch rates go down. In order to keep the crab fishery going past the first ~month at any significant rate (if this is desired) I think we need to model prices as a function of catch. This will also get a larger portion of crab recruitment caught, as right now it is rather low. Current average across years is 
-`r filter(Catch.df, spp == 'salmon') %>%
+`r filter(Catch.df, spp == 'crab') %>%
   group_by(yr) %>%
   summarize(total.catch = sum(catch), rec = first(recruitment)) %>%
   mutate(prop.caught = total.catch / rec) %>%
   with(mean(prop.caught)) %>%
   round(3)`.
 
+Although I tried to tune costs to ensure an average profit of 0, this is somewhat difficult to do, and I wanted to check to make sure what I did was working. If you sum profits each year for all ships in a fleet, the *average* profits tend to be positive, but the *median* profits tend to be about zero.
 
 ```{r, include=FALSE}
 # I need:

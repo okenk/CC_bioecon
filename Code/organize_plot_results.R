@@ -11,22 +11,18 @@ Catch.df <- melt(Catch, value.name = 'catch') %>%
   left_join(melt(N[,,1], value.name = 'recruitment')) %>%
   left_join(wts)
 
-filter(Catch.df) %>%
+filter(Catch.df, catch > 0) %>%
   ggplot() +
   geom_line(aes(x=wk, y=catch*wt_at_rec, group=yr, col = recruitment), alpha = .5) +
-  geom_point(aes(x=wk, y=catch*wt_at_rec, group=yr), cex = .1,alpha = .5) +
+  # geom_point(aes(x=wk, y=catch*wt_at_rec, group=yr), cex = .1,alpha = .5) +
   facet_grid(spp ~ fleet, scales = 'free_y') +
-  geom_vline(xintercept = 23) +
+  # geom_vline(xintercept = 23) +
   # geom_vline(xintercept = 18) +
   # ylim(0, .05) +
   NULL
 
-# Salmon questions: Some years ships drop off one by one, other years altogether.
-# Some years effort stops even though catches were higher than in years when effort doesn't stop.
-# Why???
-filter(Catch.df, yr==41,spp=='salmon',fleet=='salmon') %>%
-  ggplot(aes(x=wk,y=catch)) + geom_line()
 
+filter(Catch.df, spp == 'crab', wk==30, fleet =='both', catch >0)
 
 as_tibble(Catch.df) %>%
   filter(spp == 'salmon', fleet == 'salmon') %>%
