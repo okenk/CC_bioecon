@@ -1,3 +1,28 @@
+# This function simulates two positive random time series that are correlated with one another and are also autocorrelated.
+# corr: correlation between the two time series, on the log-scale 
+# ar: autoregressive parameter for each time series, on the log-scale
+# cv: SD of each time series on the log-scale (approximate CV on the actual scale)
+# mn: mean of the time series, on the log-scale. No bias correction is done, so bias correction should be done prior
+#     to running this function
+sim_correlated_ar_ts <- function(corr, ar, cv, mn, nyrs, npops) {
+  if(npops > 2) {
+    stop('Can only generate synchronous autocorrelated time series for two populations')
+  }
+  burn.in <- 300
+  q12 <- corr * (1 - ar[1] * ar[2]) * (cv[1] * cv[2])
+  q.diag <- cv^2 * (1 - ar^2)
+  eps <- rmvnorm(nyrs + burn.in, c(0,0), cbind(c(q.diag[1], q12), c(q12, q.diag[2]))) %>%
+    as.data.frame()
+  
+  out.ts <- map2(eps, ar, function(.x, .y)
+    as.vector(arima.sim(list(ar = .y), nyrs, innov = .x[burn.in+1:nyrs], start.innov = .x[1:burn.in]))) %>%
+    map2(mn, ~ exp(.x + .y)) %>%
+    bind_cols() %>%
+    as.matrix()
+  colnames(out.ts) <- names(mn)
+  return(out.ts)
+}
+
 # This function calculates the profit made by a marginal (5th percentile) fisher in an average year and returns profits. 
 # The function is built to be used in a root-finding method to calculate what variable costs will lead to a fishing 
 # fleet at equilibrium (no one leaving or entering the fishery). There are some print statement to help with tuning.
@@ -65,21 +90,22 @@ calc_var_cost <- function(log_avg_cost_per_trip, cost_cv, recruits, wt_at_rec, f
 # pre-season recruitment, remaining weeks to be filled), catch (empty), profit (empty), weights (simulated), 
 # salmon TACs (based on the simulated recruitment), ship-specific variable costs (simulated, constant across years), 
 # number of ships from the multi-fishery fleet fishing for crab (empty)
-set_up_objects <- function(sim_pars, seed) {
-  set.seed(seed)
+set_up_objects <- function(sim_pars) {
   list2env(sim_pars, sys.frame(sys.nframe()))
   profits <- array(-t(fleet_permits) %*% fixed_costs, dim = c(nfleets, nships, nyrs),  
                    dimnames = list(fleet = fleets, ship = NULL, yr = NULL)) %>%
     aperm(c(2,3,1))
   
+  revenue <- array(0, dim = c(nships, nyrs, nfleets), dimnames = list(ship = NULL, yr = NULL, fleet = fleets))
+  
   Catch <- array(0, dim = c(npops, nyrs, wks_per_yr, nfleets), 
                  dimnames = list(spp = spp.names, yr = NULL, wk = NULL, fleet = fleets))
   
   N <- array(0, dim = c(npops, nyrs, wks_per_yr), dimnames = list(spp = spp.names, yr = NULL, wk = NULL))
-  N[,,1] <- rmvnorm(nyrs, mean = log(avg_rec) - recruit_cv^2/2, sigma = recruit_cv * diag(npops)) %>%
-    t %>%
-    exp
-
+ 
+  N[,,1] <- sim_correlated_ar_ts(corr = recruit_corr, ar = recruit_ar, cv = recruit_cv, 
+                                 mn = log(avg_rec) - recruit_cv^2/2, nyrs = nyrs, npops = npops) %>% t()
+    
   wt_at_rec <- rmvnorm(nyrs, mean = log(avg_wt) - weight_cv^2/2, sigma = weight_cv * diag(npops)) %>% 
     t %>%
     exp
@@ -104,30 +130,36 @@ set_up_objects <- function(sim_pars, seed) {
   }
   cost_by_ship[cost_by_ship==0] <- NA
   
-  n_crab_ships <- array(0, dim = c(wks_per_yr, nyrs), 
-                        dimnames = list(wk = NULL, yr = NULL))
+  effort <- array(0, dim = c(npops, nfleets, wks_per_yr, nyrs), 
+                        dimnames = list(spp = spp.names, fleet = fleets, wk = NULL, yr = NULL))
   out.list <- list(profits = profits, Catch = Catch, N = N, wt_at_rec = wt_at_rec, 
-                   salmon_tac = salmon_tac, cost_by_ship = cost_by_ship, n_crab_ships = n_crab_ships)
+                   salmon_tac = salmon_tac, cost_by_ship = cost_by_ship, effort = effort,
+                   revenue = revenue)
   return(out.list)
 }
 
 
 # This function simulates the fleets and populations for a bunch of years with weekly time steps. Returns catch, profits, 
 # recruitment, number of ships in the multi-fishery fleet fishing for crab each week of each year
-run_sim <- function(sim_pars, seed){
-  setup.ls <- set_up_objects(sim_pars, seed)
+run_sim <- function(sim_pars, seed = NA) {
+  if(!is.na(seed)) set.seed(seed)
+  setup.ls <- set_up_objects(sim_pars)
   list2env(setup.ls, sys.frame(sys.nframe()))
   list2env(sim_pars, sys.frame(sys.nframe()))
   
-  this_week_profit <- matrix(0, nrow = nships, ncol = nfleets)
+  this_week_profit <- this_week_revenue <- matrix(0, nrow = nships, ncol = nfleets)
   for(yr in 1:nyrs) {
     temp_catchability <- catchability
     price_mat <- matrix(price, nrow = wks_per_yr+1, ncol = npops, byrow = TRUE,
                         dimnames = list(wk=NULL, spp=spp.names))
+    exp_wk1_catch <- sum(ships_per_fleet[c('crab','both')]) * N['crab',yr,1] * catchability['crab'] * wt_at_rec['crab',yr]
+    price_mat[1,'crab'] <- ifelse(exp_wk1_catch > 0.1, 1, 2 - 10 * exp_wk1_catch)
+    
     for(wk in 1:wks_per_yr){
       if(sum(pop_seasons[,wk]) > 0) {
         exp_rev <- array(N[,yr,wk] * wt_at_rec[,yr] * temp_catchability * price_mat[wk,] * pop_seasons[,wk], 
-                         dim=c(npops, nships, nfleets)) %>% 
+                         dim=c(npops, nships, nfleets), 
+                         dimnames = list(spp = spp.names, ships = NULL, fleet = fleets)) %>% 
           aperm(perm = c(2,3,1))
         # If out of legal season, expected revenue = 0. 
         # exp_rev does *not* care whether a fleet has a permit though! (That's in exp_profit)
@@ -143,27 +175,27 @@ run_sim <- function(sim_pars, seed){
           ships_per_stock <- matrix(0, nrow = npops, ncol = nfleets)
         }
         # counts up number of ships fishing each stock
-        n_crab_ships[wk,yr] <- ships_per_stock[2,2]
+        effort[,,wk,yr] <- ships_per_stock
         Catch[,yr,wk,] <- ships_per_stock * temp_catchability * N[,yr,wk]
         
         # Adjust crab stuff because it has a demand function. Too many things are hard-coded right now.
-        if(sum(Catch['crab',yr,wk,c('crab','both')]) > 0.1) {
-          price_mat[wk+1,'crab'] <- 1
-        } else {
-          price_mat[wk+1,'crab'] <- 2 - 10 * sum(Catch['crab',yr,wk,c('crab','both')]) * wt_at_rec['crab',yr]
-        }
-        
-        actual_crab_rev <- N['crab',yr,wk] * wt_at_rec['crab',yr] * temp_catchability['crab'] *
+        price_mat[wk+1,'crab'] <- ifelse(sum(Catch['crab',yr,wk,c('crab','both')]) > crab_price_cutoff, 1,
+                                         crab_price_pars[1] - crab_price_pars[2] * 
+                                           sum(Catch['crab',yr,wk,c('crab','both')]) * wt_at_rec['crab',yr])
+
+        exp_rev[,,'crab'] <- N['crab',yr,wk] * wt_at_rec['crab',yr] * temp_catchability['crab'] *
           price_mat[wk+1,'crab'] * pop_seasons['crab',wk]
-        actual_profit <- exp_profit
-        actual_profit[,,'crab'] <- actual_crab_rev - cost_by_ship[,,'crab']
+        exp_profit[,,'crab'] <- exp_rev[,,'crab'] - cost_by_ship[,,'crab']
         
         for(fleet in 1:nfleets) {
-          this_week_profit[,fleet] <- actual_profit[cbind(1:nships, fleet, best_spp[,fleet])]
+          this_week_profit[,fleet] <- exp_profit[cbind(1:nships, fleet, best_spp[,fleet])]
+          this_week_revenue[,fleet] <- exp_rev[cbind(1:nships, fleet, best_spp[,fleet])]
         }
         this_week_profit[is.na(this_week_profit)] <- 0
+        this_week_revenue[is.na(this_week_profit)] <- 0
         
         profits[,yr,] <- profits[,yr,] + this_week_profit
+        revenue[,yr,] <- revenue[,yr,] + this_week_revenue
         # actual profits are for the stock with max expected profit, if max is > 0. 
         
       } else {
@@ -181,7 +213,8 @@ run_sim <- function(sim_pars, seed){
     }
   }
   
-  out.list <- list(Catch = Catch, profits = profits, n_crab_ships = n_crab_ships, recruitment = N[,,1])
+  out.list <- list(Catch = Catch, profits = profits, effort = effort, recruitment = N[,,1], 
+                   revenue = revenue)
   return(out.list)
 }
 
