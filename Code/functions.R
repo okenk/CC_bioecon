@@ -191,8 +191,8 @@ run_sim <- function(sim_pars, seed = NA) {
           this_week_profit[,fleet] <- exp_profit[cbind(1:nships, fleet, best_spp[,fleet])]
           this_week_revenue[,fleet] <- exp_rev[cbind(1:nships, fleet, best_spp[,fleet])]
         }
-        this_week_profit[is.na(this_week_profit)] <- 0
         this_week_revenue[is.na(this_week_profit)] <- 0
+        this_week_profit[is.na(this_week_profit)] <- 0
         
         profits[,yr,] <- profits[,yr,] + this_week_profit
         revenue[,yr,] <- revenue[,yr,] + this_week_revenue

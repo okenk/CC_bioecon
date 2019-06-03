@@ -11,7 +11,8 @@ for(ii in 1:3) {
   sim_pars$recruit_corr <- corr.par[ii]
   res.list[[as.character(corr.par[ii])]] <- map(1:100, function(.x) run_sim(sim_pars))
 }
-
+synchrony <- res.list
+save(res.list, file = 'Code/synchrony.RData')
 Catch.df <- map_dfr(res.list, function(corr.val)
   map_dfr(corr.val, function(sim.res) {
     melt(sim.res$Catch, value.name = 'catch') %>%
@@ -94,8 +95,9 @@ fleet_distn$"hard access" <- c(125,125,50)
 for(ii in 1:3) {
   set.seed(53209823)
   sim_pars$ships_per_fleet <- fleet_distn[[ii]]
+  names(sim_pars$ships_per_fleet) <- fleets
   sim_pars$nships <- max(fleet_distn[[ii]])
-  res.list[[names(fleet_distn)[ii]]] <- map(1:10, function(.x) run_sim(sim_pars))
+  res.list[[names(fleet_distn)[ii]]] <- map(1:100, function(.x) run_sim(sim_pars))
 }
 
 Catch.df <- map_dfr(res.list, function(fleet.distn)

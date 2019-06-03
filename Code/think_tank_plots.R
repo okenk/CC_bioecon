@@ -123,3 +123,122 @@ melt(variable.cost.price$effort, value.name = 'n_ships') %>%
   NULL
 dev.off()
 
+
+# synchrony ---------------------------------------------------------------
+
+Catch.df <- map_dfr(synchrony, function(corr.val)
+  map_dfr(corr.val, function(sim.res) {
+    melt(sim.res$Catch, value.name = 'catch') %>%
+      as_tibble() %>%
+      left_join(melt(sim.res$recruitment, value.name = 'recruitment'))
+  }, 
+  .id = 'sim_number'),
+  .id = 'rec_corr')
+
+effort.df <- map_dfr(synchrony, function(corr.val)
+  map_dfr(corr.val, function(sim.res) {
+    melt(sim.res$effort, value.name = 'n_ships') %>%
+      as_tibble() %>%
+      left_join(melt(sim.res$recruitment, value.name = 'recruitment'))
+  }, 
+  .id = 'sim_number'),
+  .id = 'rec_corr')
+
+cpue <- left_join(Catch.df, effort.df)
+yrs <- filter(cpue, sim_number=='1', rec_corr == 0) %>%
+  group_by(yr) %>%
+  summarize(rec = first(recruitment)) %>%
+  arrange(rec) %>%
+  slice(3, 15, 27, 39, 50) %>%
+  with(yr)
+
+plt <- filter(cpue, n_ships > 0, sim_number == '1') %>%
+  ggplot(aes(x=wk, group=yr)) +
+  facet_grid(spp + fleet ~ rec_corr, scales = 'free_y') +
+  theme_bw(base_size = 14) +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill="white")) +
+  xlab('Week of year') +
+  guides(col = guide_legend(title = 'Year')) +
+  NULL
+  
+png('Figures/think_tank/sync_catch.png', height = 5, width = 7, units = 'in',
+    res = 500)
+plt +
+  geom_line(aes(y=catch), alpha = .25, lwd=.1) +
+  geom_line(data = filter(cpue, sim_number == '1', n_ships > 0, 
+                          yr %in% yrs),
+            aes(x = wk, y = catch, group = yr, col = factor(yr))) +
+  ylab('Catch (weight)') 
+
+dev.off()
+
+png('Figures/think_tank/sync_effort.png', height = 5, width = 7, units = 'in',
+    res = 500)
+plt +
+  geom_line(aes(y=n_ships), alpha = .25, lwd=.1) +
+  geom_line(data = filter(cpue, sim_number == '1', n_ships > 0, 
+                          yr %in% yrs),
+            aes(x = wk, y = n_ships, group = yr, col = factor(yr))) +
+  ylab('Effort (number of ships')
+dev.off()
+
+png('Figures/think_tank/sync_cpue.png', height = 5, width = 7, units = 'in',
+    res = 500)
+plt +
+  geom_line(aes(y=catch/n_ships), alpha = .25, lwd=.1) +
+  geom_line(data = filter(cpue, sim_number == '1', n_ships > 0, 
+                          yr %in% yrs),
+            aes(x = wk, y = catch/n_ships, group = yr, col = factor(yr))) +
+  ylab('CPUE')
+dev.off()
+
+profit.df <- map_dfr(synchrony, function(corr.val)
+  map_dfr(corr.val, function(sim.res) {
+    melt(sim.res$profits, value.name = 'profit') %>%
+      as_tibble()
+    }, 
+  .id = 'sim_number'),
+  .id = 'rec_corr')
+
+revenue.df <- map_dfr(synchrony, function(corr.val)
+  map_dfr(corr.val, function(sim.res) {
+    melt(sim.res$revenue, value.name = 'revenue') %>%
+      as_tibble()
+  }, 
+  .id = 'sim_number'),
+  .id = 'rec_corr')
+
+income <- left_join(profit.df, revenue.df)
+income.summary <- group_by(income, rec_corr, sim_number, fleet, ship) %>%
+  summarize(profit.sd = sd(profit),
+            revenue.cv = sd(revenue)/mean(revenue))
+
+png('Figures/think_tank/sync_rev.png', height = 3, width = 7, units = 'in',
+    res = 500)
+ggplot(income.summary) +
+  geom_density(aes(x = revenue.cv, col = rec_corr, fill = rec_corr), 
+               alpha = .25) +
+  facet_wrap(~fleet) +
+  theme_bw(base_size = 14) +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill="white")) +
+  xlab('Revenue CV') +
+  NULL
+dev.off()
+
+png('Figures/think_tank/sync_profit.png', height = 3, width = 7, units = 'in',
+    res = 500)
+ggplot(income.summary) +
+  geom_density(aes(x = profit.sd, col = rec_corr, fill = rec_corr), 
+               alpha = .25) +
+  facet_wrap(~fleet) +
+  theme_bw(base_size = 14) +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill="white")) +
+  xlab('Profit SD') +
+  NULL
+dev.off()

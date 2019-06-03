@@ -47,7 +47,7 @@ avg_wt <- c(1,1)
 weight_cv <- 0 # sqrt(log(0.2^2+1))
 recruit_cv <- rep(sqrt(log(0.5^2+1)), 2)
 recruit_ar <- c(.3,.3)
-recruit_corr <- .25
+recruit_corr <- 0
 
 fixed_costs <- c(.0025, .0001)
 cost_per_trip <- rep(NA, 2)
