@@ -2,7 +2,7 @@ library(reshape2)
 library(ggplot2)
 library(tidyr)
 
-# Recruitment syncrhony ---------------------------------------------------
+# Recruitment synchrony ---------------------------------------------------
 sim_pars$ships_per_fleet <- rep(100,3)
 res.list <- list()
 corr.par <- c(0.4, 0, -0.4)
