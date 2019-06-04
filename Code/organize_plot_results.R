@@ -2,7 +2,7 @@ library(reshape2)
 library(ggplot2)
 library(tidyr)
 
-# Recruitment syncrhony ---------------------------------------------------
+# Recruitment synchrony ---------------------------------------------------
 sim_pars$ships_per_fleet <- rep(100,3)
 res.list <- list()
 corr.par <- c(0.4, 0, -0.4)
@@ -92,6 +92,7 @@ fleet_distn$"easy access" <- c(50,50,200)
 fleet_distn$"even access" <- rep(100,3)
 fleet_distn$"hard access" <- c(125,125,50)
 
+res.list <- list()
 for(ii in 1:3) {
   set.seed(53209823)
   sim_pars$ships_per_fleet <- fleet_distn[[ii]]
@@ -99,6 +100,7 @@ for(ii in 1:3) {
   sim_pars$nships <- max(fleet_distn[[ii]])
   res.list[[names(fleet_distn)[ii]]] <- map(1:100, function(.x) run_sim(sim_pars))
 }
+access <- res.list
 
 Catch.df <- map_dfr(res.list, function(fleet.distn)
   map_dfr(fleet.distn, function(sim.res) {
@@ -174,3 +176,21 @@ test <- melt(xx$profit, value.name = 'profit') %>%
 ggplot(test) +
   geom_freqpoly(aes(x = profit, y=..density.., col = fleet), bins = 70) +
   NULL
+
+# crab delay --------------------------------------------------------------
+sim_pars$ships_per_fleet <- rep(100,3)
+names(sim_pars$ships_per_fleet) <- fleets
+sim_pars$nships <- 100
+
+res.list <- list()
+season_list <- map(1:3, ~pop_seasons)
+names(season_list) <- c('normal', 'late opening', 'early closure')
+season_list$`late opening`['crab', 1:4] <- 0
+season_list$`early closure`['crab', 28:37] <- 0
+
+for(ii in 1:3) {
+  set.seed(53209823)
+  sim_pars$pop_seasons <- season_list[[ii]]
+  res.list[[names(season_list)[ii]]] <- map(1:100, function(.x) run_sim(sim_pars))
+}
+timing <- res.list
