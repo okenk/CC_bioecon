@@ -126,7 +126,6 @@ dev.off()
 
 # scenario function -------------------------------------------------------
 
-
 make_think_tank_plots(synchrony, 'sync', 'rec_corr', 0)
 make_think_tank_plots(access, 'access', 'access', 'even access')
 make_think_tank_plots(timing, 'timing', 'timing', 'normal')
