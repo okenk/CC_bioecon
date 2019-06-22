@@ -3,7 +3,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     map_dfr(corr.val, function(sim.res) {
       melt(sim.res$Catch, value.name = 'catch') %>%
         as_tibble() %>%
-        left_join(melt(sim.res$recruitment, value.name = 'recruitment'))
+        left_join(melt(sim.res$rec_dev, value.name = 'rec_dev'))
     }, 
     .id = 'sim_number'),
     .id = sim.id)
@@ -12,7 +12,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     map_dfr(corr.val, function(sim.res) {
       melt(sim.res$effort, value.name = 'n_ships') %>%
         as_tibble() %>%
-        left_join(melt(sim.res$recruitment, value.name = 'recruitment'))
+        left_join(melt(sim.res$rec_dev, value.name = 'rec_dev'))
     }, 
     .id = 'sim_number'),
     .id = sim.id)
@@ -20,7 +20,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
   cpue <- left_join(Catch.df, effort.df)
   yrs <- filter(cpue, sim_number=='1', get(sim.id) == base.value) %>%
     group_by(yr) %>%
-    summarize(rec = first(recruitment)) %>%
+    summarize(rec = first(rec_dev)) %>%
     arrange(rec) %>%
     slice(c(3, 15, 27, 39, 50)) %>%
     with(yr)

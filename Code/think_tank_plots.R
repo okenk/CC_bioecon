@@ -20,13 +20,13 @@ sim_pars$cost_per_trip['salmon'] <- exp(xx$root)
 constant.cost.price <- run_sim(sim_pars, 230985)
 Catch.df <-  melt(constant.cost.price$Catch, value.name = 'catch') %>%
   as_tibble() %>%
-  left_join(melt(constant.cost.price$recruitment, value.name = 'recruitment'))
+  left_join(melt(constant.cost.price$rec_dev, value.name = 'rec_dev'))
 
 png('Figures/think_tank/crabs_caught1.png', res = 500, height = 5, width = 7, units = 'in')
 Catch.df %>%
   group_by(spp, yr) %>%
   summarize(catch = sum(catch),
-            rec = first(recruitment),
+            rec = first(rec_dev),
             prop.caught = catch/rec) %>%
   # summarize(mean(prop.caught)) 
   filter(spp == 'crab') %>%
@@ -75,7 +75,7 @@ constant.price <- run_sim(sim_pars, 230985)
 
 Catch.df <-  melt(constant.price$Catch, value.name = 'catch') %>%
   as_tibble() %>%
-  left_join(melt(constant.price$recruitment, value.name = 'recruitment'))
+  left_join(melt(constant.price$rec_dev, value.name = 'rec_dev'))
 
 png('Figures/think_tank/effort2.png', res = 500, height = 5, width = 7, units = 'in')
 melt(constant.price$effort, value.name = 'n_ships') %>% 
@@ -106,7 +106,7 @@ variable.cost.price <- run_sim(sim_pars, 230985)
 
 Catch.df <-  melt(variable.cost.price$Catch, value.name = 'catch') %>%
   as_tibble() %>%
-  left_join(melt(variable.cost.price$recruitment, value.name = 'recruitment'))
+  left_join(melt(variable.cost.price$rec_dev, value.name = 'rec_dev'))
 
 png('Figures/think_tank/effort3.png', res = 500, height = 4, width = 7, units = 'in')
 melt(variable.cost.price$effort, value.name = 'n_ships') %>% 
@@ -125,7 +125,3 @@ dev.off()
 
 
 # scenario function -------------------------------------------------------
-
-make_think_tank_plots(synchrony, 'sync', 'rec_corr', 0)
-make_think_tank_plots(access, 'access', 'access', 'even access')
-make_think_tank_plots(timing, 'timing', 'timing', 'normal')
