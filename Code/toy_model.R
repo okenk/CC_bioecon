@@ -7,17 +7,24 @@ Rcpp::sourceCpp("Code/getBestSpp.cpp")
 # Model parameters --------------------------------------------------------
 
 spp.names <- c('crab', 'salmon', 'groundfish')
-fleets <- c('crab', 'salmon', 'crab-salmon')
+fleets <- c('crab', 'salmon', 'groundfish', 'crab-salmon', 'crab-groundfish', 'crab-salmon-groundfish')
 
 wks_per_yr <- 52
 nyrs <- 50
 npops <- length(spp.names)
 nfleets <- length(fleets)
-ships_per_fleet <- c(1, 1, 1) * 100
+ships_per_fleet <- rep(1, nfleets) * 67
 nships <- max(ships_per_fleet)
+# fleet_permits <- cbind(c(1,0,0), # crab fleet 
+#                        c(0,1,0), # salmon fleet
+#                        c(1,1,0)) # crab-salmon fleet
+
 fleet_permits <- cbind(c(1,0,0), # crab fleet 
                        c(0,1,0), # salmon fleet
-                       c(1,1,0)) # crab-salmon fleet
+                       c(0,0,1), # groundfish fleet
+                       c(1,1,0), # crab-salmon fleet
+                       c(1,0,1), # crab-groundfish fleet
+                       c(1,1,1)) # crab-salmon-groundfish fleet
 dimnames(fleet_permits) <- list(spp = spp.names, fleet = fleets)
 names(ships_per_fleet) <- fleets
 
@@ -38,11 +45,11 @@ pop_seasons['salmon', 47] <- 1
 # pop_seasons['salmon', 47] <- 0.7
 pop_seasons['salmon', 48:wks_per_yr] <- 0;
 
-catchability <- c(.0005, .00005, 0);
+catchability <- c(.0005, .00005, 6.5*10^(-6));
 # proportion of stock that will be caught by one fleet/ship during one week
 # of fishing
 
-price <- c(1, 1, 1)
+price <- c(1, 1, 2)
 avg_rec <- c(1, 1, 1)
 avg_wt <- c(1, 1, 1)
 
@@ -51,7 +58,7 @@ recruit_cv <- rep(sqrt(log(0.5^2+1)), npops)
 recruit_ar <- c(.3,.3, 3)
 recruit_corr <- 0
 
-fixed_costs <- c(.0025, .0001, 0)
+fixed_costs <- c(.0025, .0001, .00002)
 cost_per_trip <- rep(NA, npops)
 cost_cv <- sqrt(log(.15^2+1))
 cost_corr <- 0.7
@@ -122,6 +129,7 @@ sim_pars$cost_per_trip['salmon'] <- exp(xx$root)
 
 # Run model! --------------------------------------------------------------
 
+xx <- run_sim(sim_pars = sim_pars)
 
 # Groundfish model setup --------------------------------------------------
 
@@ -143,9 +151,9 @@ weights <- weights/weights[age.4.ind]
 mod <- lm(weights[age.4.ind:length(ages)] ~ weights[age.4.ind:length(ages)-1])
 growth.al <- coef(mod)[1]
 growth.rho <- coef(mod)[2]
-w.r <- 1
-# w.r.minus.1 <- (w.r - growth.al)/growth.rho
-weights.new <- numeric(length(ages) - 3*wks_per_yr)
+w.r <- 1/2
+w.r.minus.1 <- (w.r - growth.al) / growth.rho
+weights.new <- numeric(length(ages) - 3*wks_per_yr) # start weights.new at age 4.0
 weights.new[1] <- 1
 for(ii in 2:length(weights.new)) {
   weights.new[ii] <- growth.al + growth.rho * weights.new[ii-1]
@@ -166,14 +174,97 @@ a <- sbpr0 * (1 - (steepness - 0.2)/(0.8 * steepness))
 b <- (steepness - 0.2) / (0.8 * steepness * R0)
 groundfish <- list(M_wk = M_wk, BH_a = a, BH_b = b, alpha = growth.al, rho = growth.rho)
 
+# I tried doing this based on equilibrium biomasses from Hilborn & Walters, but the answers didn't seem right.
+# So I did it the brute force way instead. The answer was different. This seems more likely to be right.
+
+nyrs <- 300 # checked, this is sufficient to reach equilibrium @ B0 (which is slowest to converge)
+harvest.seq <- seq(from = 0, to = .15/wks_per_yr, length.out = 500)
+yield.seq <- bio.seq <- N.seq <- rec.seq <- numeric(length(harvest.seq))
+
+for(ii in 1:length(harvest.seq)) {
+  harvest <- harvest.seq[ii]
+  groundfish_bio <- groundfish_N <- matrix(0, nrow = nyrs, ncol = wks_per_yr)
+  groundfish_bio[1,] <- groundfish_N[1,] <- 1
+  groundfish_rec <- rep(1,4)
+
+  for(yr in 2:nyrs) {
+    yield <- 0
+    # move this to the end. start loop at 1.
+    groundfish_total_survival <- exp(-groundfish$M_wk) * (1-harvest)
+    groundfish_N[yr,1] <- groundfish_N[yr-1,wks_per_yr] * groundfish_total_survival + groundfish_rec[1]
+    groundfish_bio[yr,1] <- groundfish_total_survival * 
+      (groundfish$alpha * groundfish_N[yr-1,wks_per_yr] + groundfish$rho * groundfish_bio[yr-1,wks_per_yr]) +
+      groundfish_rec[1] ## assumes weight at recruitment = 1
+    
+    groundfish_rec[1:3] <- groundfish_rec[2:4]
+    if(yr+4 < nyrs) {
+      groundfish_rec[4] <- exp(-groundfish$M_wk*wks_per_yr*4) * 
+        groundfish$BH_a * groundfish_bio[yr,1] / (groundfish$BH_b + groundfish_bio[yr,1])
+    }
+    
+    for(wk in 1:(wks_per_yr-1)) {
+      groundfish_total_survival <- exp(-groundfish$M_wk) * (1-harvest)
+      groundfish_N[yr,wk+1] <- groundfish_N[yr,wk] * groundfish_total_survival
+      groundfish_bio[yr,wk+1] <- groundfish_total_survival * 
+        (groundfish$alpha * groundfish_N[yr,wk] + groundfish$rho * groundfish_bio[yr,wk])
+      yield <- yield + harvest * groundfish_bio[yr,wk]
+    }
+    yield <- yield + harvest * groundfish_bio[yr,wks_per_yr]
+  }
+  yield.seq[ii] <- yield
+  bio.seq[ii] <- groundfish_bio[nyrs,1]
+  N.seq[ii] <- groundfish_N[nyrs,1]
+  rec.seq[ii] <- groundfish_rec[1]
+}
+
+bio.seq[which.min(abs(bio.seq - 0.4 * bio.seq[1]))]
+0.4 * bio.seq[1]
+plot(harvest.seq, yield.seq, pch = '.')
+plot(bio.seq, yield.seq, pch = '.')
+
+R0 <- 1/bio.seq[find_closest(bio.seq, 0.4 * bio.seq[1])] # set R0 so B40 = 3
+a <- 4 * steepness * R0 / (5 * steepness - 1)
+b <- sbpr0 * (1 - steepness) / (5 * steepness - 1)
+groundfish$BH_a <- a
+groundfish$BH_b <- b
+# Set initial conditions based on equilibrium results here.
+
+xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv,
+                         fishing_season = pop_seasons['groundfish',], bio_init = 1,
+                         N1 = N.seq[find_closest(bio.seq, 1)], fleet_size = 200, in_season_dpltn = TRUE,
+                         fixed_costs = .00002, catchability = 6.5*10^(-6), price = 2, tac = NA, groundfish = groundfish)
+
+# calc_var_cost_groundfish(log_avg_cost_per_trip = -11.9, cost_cv = cost_cv, 
+#               fishing_season = pop_seasons['groundfish',], bio_init = 1, 
+#               N1 = N.seq[find_closest(bio.seq, 1)], fleet_size = 200, in_season_dpltn = TRUE, 
+#               fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
+# 
+# xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv, 
+#               fishing_season = pop_seasons['groundfish',], 
+#               bio_init = bio.seq[find_closest(yield.seq[1:295], 0.05718231)],
+#               N1 = N.seq[find_closest(yield.seq[1:295], 0.05718231)], fleet_size = 200, in_season_dpltn = TRUE, 
+#               fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
+
+groundfish$b_init <- 0.984438786700563
+groundfish$N_init <- N.seq[find_closest(bio.seq, 0.984438786700563)]
+groundfish$rec_init <- rec.seq[find_closest(bio.seq, 0.984438786700563)]
 sim_pars$groundfish <- groundfish
 
-# Beverton-Holt S-R relationship: R = SSB/(a+b*SSB)
+sim_pars$cost_per_trip['groundfish'] <- exp(xx$root)
+
+
+# I looked at the S-R relationship. The weekly growth/mortality but annual recruitment made actual R0 less than the
+# parameter R0. However, steepness was still 0.6, so I am proceeding.
+
+# Dan ?: I have avg rec for salmon, crabs = 1. What is equivalent for groundfish? B_MSY = 1? Initial condition?
+
+# Beverton-Holt S-R relationship: R = a*SSB/(b+SSB)
 # aim for SSB_MSY = 1 instead of R0 = 1? Or something else?
 
 ## Groundfish to do:
-## 4. Calculate equilibrium dynamics for pre-model recruitment, TACs
+## 1. Change population dynamics to annual for cost setting and simulation functions. Can then use analytic equilibrium conditions.
+## 2.  
 
 ## Good coding practices:
-## a) All of this needs to be written to be conditional on having a stock called "groundfish"
-## b) Right now, age at recruitment to fishery (4) is hard-coded in. Make this flexible?
+## a) All of this could be written to be conditional on having a stock called "groundfish"
+## b) Right now, age at recruitment to fishery (4) is hard-coded in. Make this flexible? (Unclear age 4 is best choice?)

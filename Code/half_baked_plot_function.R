@@ -1,4 +1,4 @@
-make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
+make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
   Catch.df <- map_dfr(res.list, function(corr.val)
     map_dfr(corr.val, function(sim.res) {
       melt(sim.res$Catch, value.name = 'catch') %>%
@@ -27,7 +27,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
   
   plt <- filter(cpue, n_ships > 0, sim_number == '1') %>%
     ggplot(aes(x=wk, group=yr)) +
-    facet_grid(spp + fleet ~ get(sim.id), scales = 'free_y') +
+    facet_grid(get(sim.id) ~ spp + fleet, scales = 'free_y') +
     theme_bw(base_size = 14) +
     theme(panel.grid.major = element_blank(), 
           panel.grid.minor = element_blank(),
@@ -42,7 +42,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
                             yr %in% yrs),
               aes(x = wk, y = catch, group = yr, col = factor(yr))) +
     ylab('Catch (weight)') 
-  ggsave(filename = paste0('Figures/think_tank/', sim.file.name, '_catch.png'), plot = to.save, height = 5, width = 7,
+  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_catch.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- plt +
@@ -51,7 +51,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
                             yr %in% yrs),
               aes(x = wk, y = n_ships, group = yr, col = factor(yr))) +
     ylab('Effort (number of ships)') 
-  ggsave(filename = paste0('Figures/think_tank/', sim.file.name, '_effort.png'), plot = to.save, height = 5, width = 7,
+  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_effort.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- plt +
@@ -60,7 +60,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
                             yr %in% yrs),
               aes(x = wk, y = catch/n_ships, group = yr, col = factor(yr))) +
     ylab('CPUE') 
-  ggsave(filename = paste0('Figures/think_tank/', sim.file.name, '_cpue.png'), plot = to.save, height = 5, width = 7,
+  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_cpue.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   profit.df <- map_dfr(res.list, function(corr.val)
@@ -93,7 +93,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
-    facet_wrap(~fleet) +
+    facet_wrap(~fleet, nrow = 2) +
     theme_bw(base_size = 14) +
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
@@ -101,13 +101,13 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Revenue CV') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/think_tank/', sim.file.name, '_rev.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = revenue.mn, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
-    facet_wrap(~fleet, scales = 'free_x') +
+    facet_wrap(~fleet, nrow = 2, scales = 'free_x') +
     theme_bw(base_size = 14) +
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
@@ -115,13 +115,13 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Mean revenue') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/think_tank/', sim.file.name, '_avg_rev.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_avg_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = profit.sd, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
-    facet_wrap(~fleet, scales = 'free_x') +
+    facet_wrap(~fleet, scales = 'free') +
     theme_bw(base_size = 14) +
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
@@ -129,7 +129,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Profit SD') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/think_tank/', sim.file.name, '_profit.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_profit.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- ggplot(income.summary) +
@@ -143,7 +143,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Mean profit') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/think_tank/', sim.file.name, '_avg_prof.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_avg_prof.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
 
     to.save <- ggplot(income.summary) +
@@ -156,7 +156,7 @@ make_think_tank_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Revenue CV') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/think_tank/', sim.file.name, '_rev_agg.png'), plot = to.save, height = 5, width = 7,
+  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_rev_agg.png'), plot = to.save, height = 5, width = 7,
          units = 'in', dpi = 500)
   
 }

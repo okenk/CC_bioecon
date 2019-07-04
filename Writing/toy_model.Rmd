@@ -26,6 +26,12 @@ Fishers were not assumed to interfere with one another and catch rates within a 
 
 ## Thoughts/Results
 Here is a plot of catches in weight through the year where each line is one of 50 different years. Recruitment and weight at recruitment are randomly simulated each year. The weekly variable costs for each ship are constant across the simulation. You can see in years of poorer productivity, more ships leave the fishery before it closes, seen by the non-linear decline in catches. (Linear decline is due to in season depletion.) You can see there are some years no one/very few people bother to fish for salmon. Even people with only salmon permits. (Note their costs follow the same patterns as the multi-permit fleet. There is empirical evidence this may not be the case.) In the crab fishery, basically always everyone goes out at least for the first week.
+
+## Groundfish
+Unlike crab and salmon, we include a stock-recruit relationship and across-season depletion of the groundfish population, consistent with their longer life spans and availability of the same cohort to the fishery for many years. Groundfish population dynamics are governed by a delay-difference model based on Sablefish. Growth, natural mortality, and fishing mortality occur on a weekly time scale, while recruitment happens in a single annual pulse, and is based on biomass in the first week of the year. This is consistent with the seasonal nature of spawning and recruitment of sablefish, which in reality peaks for around two months. Age at recruitment is 4, so recruitment is lagged for 4 years during which natural mortality is applied. Like salmon and crab, weight at recruitment is 1 (though note that unlike salmon and crab, groundfish ultimately grow to larger sizes). 
+
+Initial biomass is set to 1 so that the available biomass is 1 for all three fisheries. For tuning, I played around with catchability and fixed costs until I achieved and annual yield somewhere around the equilibrium yield associated with B_40%. Then, I calculated the equilibrium biomass for my yield, retuned recruitment so that equilibrium biomass was equal to 1, and recalculated equilibrium N at that biomass (i.e., found the depletion level/age structure). 
+
 ```{r, echo = FALSE}
 filter(Catch.df, catch > 0) %>%
   ggplot() +
