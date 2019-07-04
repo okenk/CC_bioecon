@@ -1,3 +1,10 @@
+# This function finds the index of a vector containing the value that is closest to a target value.
+# vec: the vector of all values you are taking an index from
+# target: the target for which you want to know which element of vec is closest 
+find_closest <- function(vec, target) {
+  which.min(abs(vec - target))
+}
+
 # This function simulates two positive random time series that are correlated with one another and are also autocorrelated.
 # corr: correlation between the two time series, on the log-scale 
 # ar: autoregressive parameter for each time series, on the log-scale
@@ -85,6 +92,63 @@ calc_var_cost <- function(log_avg_cost_per_trip, cost_cv, recruits, wt_at_rec, f
   return(profit)
 }
 
+calc_var_cost_groundfish <- function(log_avg_cost_per_trip, cost_cv, N1, bio_init, fishing_season, in_season_dpltn, 
+                          fleet_size, fixed_costs, catchability, price, tac = NA, groundfish) {
+  # avg_cost_per_trip <- exp(log_cost_per_trip)
+  quantiles <- seq(1/(fleet_size+1), fleet_size/(fleet_size+1), length.out = fleet_size)
+  cost_per_trip <- qlnorm(quantiles, log_avg_cost_per_trip - cost_cv^2/2, cost_cv)
+  recruits <- rep(bio_init/(groundfish$BH_a + groundfish$BH_b * bio_init), 4)
+  bio_old <- 0
+  ii <- 0
+  
+  while((abs(bio_old - bio_init) > .00001) & ii < 1000) {
+    N <- biomass <- numeric(wks_per_yr)
+    N[1] <- N1
+    biomass[1] <- bio_init
+    variable_costs <- revenue <- numeric(fleet_size)
+    yield <- matrix(0, nrow = wks_per_yr, ncol = fleet_size)
+    
+    for(wk in 1:wks_per_yr) { 
+      exp_profit <- biomass[1] * price * catchability * fishing_season[wk]  - cost_per_trip
+      did_fish <- exp_profit >= 0
+      variable_costs <- variable_costs + did_fish * cost_per_trip
+      yield[wk,] <- did_fish * catchability * biomass[wk]
+      revenue <- revenue + yield[wk,] * price
+      
+      groundfish_total_survival <- exp(-groundfish$M_wk) * 
+        (1 - catchability * sum(did_fish))
+      if(wk < wks_per_yr) {
+        N[wk+1] <- N[wk] * groundfish_total_survival
+        biomass[wk+1] <- groundfish_total_survival * 
+          (groundfish$alpha * N[wk] + groundfish$rho * biomass[wk])
+      }
+      
+    }
+    bio_temp <- bio_init
+    N1 <- N[wk] * groundfish_total_survival + recruits[1]
+    bio_init <- groundfish_total_survival * 
+      (groundfish$alpha * N[wk] + groundfish$rho * biomass[wk]) + recruits[1]
+    recruits[1:3] <- recruits[2:4]
+    recruits[4] <- exp(-groundfish$M_wk*wks_per_yr*4) * groundfish$BH_a * bio_init/(groundfish$BH_b + bio_init)
+    bio_old <- bio_temp
+    ii <- ii + 1
+  }
+  print(paste('yield is', sum(yield)))
+  print(paste('biomass is', bio_init))
+  # print(price_vec)
+  # print(paste(mean(variable_costs), fixed_costs))
+  # Want entry/exit at equilibrium, new fisher should expect 0 net profits. 
+  # New fisher would have higher than average costs though, so set profit = 0 for 95th percentile variable cost fisher 
+  marginal_fisher <- round(.95 * fleet_size)
+  profit <- revenue[marginal_fisher] - variable_costs[marginal_fisher] - fixed_costs
+  # profit <- sum(revenue - variable_costs) - fixed_costs*fleet_size 
+  # print(paste('avg profit is', profit))
+  if(ii == 500) {
+    profit <- 100
+    print('broke out of loop')
+  }
+  return(profit)
+}
 
 # This function sets up the objects to be filled in the simulations. Returns a list of abundance (includes simulated 
 # pre-season recruitment, remaining weeks to be filled), catch (empty), profit (empty), weights (simulated), 
@@ -102,15 +166,19 @@ set_up_objects <- function(sim_pars) {
                  dimnames = list(spp = spp.names, yr = NULL, wk = NULL, fleet = fleets))
   
   groundfish_bio <- matrix(0, nrow = nyrs, ncol = wks_per_yr, dimnames = list(yr=NULL, wk=NULL))
+  groundfish_bio[1,1] <- groundfish$b_init
   
   N <- array(0, dim = c(npops, nyrs, wks_per_yr), dimnames = list(spp = spp.names, yr = NULL, wk = NULL))
  
   # N[,,1] <- sim_correlated_ar_ts(corr = recruit_corr, ar = recruit_ar, cv = recruit_cv, 
   #                                mn = log(avg_rec) - recruit_cv^2/2, nyrs = nyrs, npops = npops) %>% t()
-  N[,,1] <- rec_devs <- rmvnorm(n = nyrs, sigma = recruit_cv * diag(npops), mean = log(avg_rec) - recruit_cv^2/2) %>%
+  sigma_mat <- matrix(recruit_corr * recruit_cv^2, nrow = npops, ncol = npops)
+  diag(sigma_mat) <- recruit_cv^2
+  N[,,1] <- rec_devs <- rmvnorm(n = nyrs, sigma = sigma_mat, mean = log(avg_rec) - recruit_cv^2/2) %>%
     t %>% exp
-  
-  groundfish_rec <- groundfish$start_rec * rec_devs['groundfish', 1:4]
+  dimnames(rec_devs) <- list(spp = spp.names, yr = NULL)
+  N['groundfish',1,1] <- groundfish$N_init
+  groundfish_rec <- groundfish$rec_init * rec_devs['groundfish', 1:4]
   
   wt_at_rec <- rmvnorm(nyrs, mean = log(avg_wt) - weight_cv^2/2, sigma = weight_cv * diag(npops)) %>% 
     t %>%exp
@@ -154,23 +222,9 @@ run_sim <- function(sim_pars, seed = NA) {
   for(yr in 1:nyrs) {
     price_mat <- matrix(price, nrow = wks_per_yr+1, ncol = npops, byrow = TRUE,
                         dimnames = list(wk=NULL, spp=spp.names))
-    exp_wk1_catch <- sum(ships_per_fleet[c('crab','both')]) * N['crab',yr,1] * catchability['crab'] * wt_at_rec['crab',yr]
+    exp_wk1_catch <- sum(ships_per_fleet[grep('crab', fleets)]) * N['crab',yr,1] * catchability['crab'] * wt_at_rec['crab',yr]
     price_mat[1,'crab'] <- ifelse(exp_wk1_catch > crab_price_cutoff, 
                                   1, crab_price_pars[1] - crab_price_pars[2] * exp_wk1_catch)
-    
-    groundfish_total_survival <- exp(-groundfish$M_wk) * 
-      (1 - temp_catchability['groundfish'] * sum(effort['groundfish',,wks_per_yr,yr-1]))
-    N['groundfish',yr,1] <- N['groundfish',yr-1,wks_per_yr] * groundfish_total_survival + groundfish_rec[1]
-    groundfish_bio[yr,1] <- groundfish_total_survival * 
-      (groundfish$alpha * N['groundfish',yr-1,wks_per_yr] + groundfish$rho * groundfish_bio[yr-1,wks_per_yr]) +
-      groundfish_rec[1] ## assumes weight at recruitment = 1
-    
-    groundfish_rec[1:3] <- groundfish_rec[2:4]
-    if(yr+4 < nyrs) {
-    groundfish_rec[4] <- rec_devs['groundfish', yr+4] * exp(-groundfish$M_wk*wks_per_yr*4) * 
-      groundfish_bio[yr,1] / (groundfish$BH_a + groundfish$BH_b * groundfish_bio[yr,1])
-    }
-    
     temp_catchability <- catchability
 
     for(wk in 1:wks_per_yr){
@@ -201,9 +255,9 @@ run_sim <- function(sim_pars, seed = NA) {
         Catch[,yr,wk,] <- ships_per_stock * temp_catchability * N[,yr,wk]
         
         # Adjust crab stuff because it has a demand function. Baseline price is hard-coded in right now...
-        price_mat[wk+1,'crab'] <- ifelse(sum(Catch['crab',yr,wk,c('crab','both')]) > crab_price_cutoff, 1,
+        price_mat[wk+1,'crab'] <- ifelse(sum(Catch['crab',yr,wk,grep('crab', fleets)]) > crab_price_cutoff, 1,
                                          crab_price_pars[1] - crab_price_pars[2] * 
-                                           sum(Catch['crab',yr,wk,c('crab','both')]) * wt_at_rec['crab',yr])
+                                           sum(Catch['crab',yr,wk,grep('crab', fleets)]) * wt_at_rec['crab',yr])
 
         exp_rev[,,'crab'] <- N['crab',yr,wk] * wt_at_rec['crab',yr] * temp_catchability['crab'] *
           price_mat[wk+1,'crab'] * pop_seasons['crab',wk]
@@ -226,11 +280,8 @@ run_sim <- function(sim_pars, seed = NA) {
       
       if(wk < wks_per_yr) {
         N[,yr,wk+1] <- N[,yr,wk] - apply(Catch[,yr,wk,], 1, sum)
-        groundfish_total_survival <- exp(-groundfish$M_wk) * 
-          (1 - temp_catchability['groundfish'] * sum(effort['groundfish',,wk,yr]))
-        N['groundfish',yr,wk+1] <- N['groundfish',yr,wk] * groundfish_total_survival
-        groundfish_bio[yr,wk+1] <- groundfish_total_survival * 
-          (groundfish$alpha * N['groundfish',yr,wk] + groundfish$rho * groundfish_bio[yr,wk])
+        # N['groundfish',yr,wk+1] <- N['groundfish',yr,wk] * groundfish_total_survival
+        groundfish_bio[yr,wk+1] <- (1 - temp_catchability['groundfish'] * sum(effort['groundfish',,wk,yr])) * groundfish_bio[yr,wk]
       }
       
       if(sum(Catch['salmon',yr,,]) >= salmon_tac[yr]) {
@@ -239,10 +290,26 @@ run_sim <- function(sim_pars, seed = NA) {
         print(paste('salmon TAC engaged in week', wk, 'of year', yr))
       }
     }
+    
+    if(yr < nyrs) {
+      groundfish_total_survival <- exp(-groundfish$M) * (1 - sum(Catch['groundfish',yr,,]) / N['groundfish',yr,1])
+        
+      N['groundfish',yr+1,1] <- N['groundfish',1] * groundfish_total_survival + groundfish_rec[1]
+      groundfish_bio[yr+1,1] <- groundfish_total_survival * 
+        (groundfish$alpha * N['groundfish',yr,1] + groundfish$rho * groundfish_bio[yr,wks_per_yr]) +
+        groundfish_rec[1] ## assumes weight at recruitment = 1
+      
+      groundfish_rec[1:3] <- groundfish_rec[2:4]
+      if(yr+4 < nyrs) {
+        ssb <- groundfish_bio[yr,1] * (1 - sum(Catch['groundfish',yr,,]) / N['groundfish',yr,1])
+        groundfish_rec[4] <- rec_devs['groundfish', yr+4] * exp(-groundfish$M_wk*wks_per_yr*4) * 
+          groundfish$BH_a * ssb / (groundfish$BH_b + ssb)
+      }
+    }
   }
   
-  out.list <- list(Catch = Catch, profits = profits, effort = effort, rec_dev = rec_dev, 
-                   revenue = revenue)
+  out.list <- list(Catch = Catch, profits = profits, effort = effort, rec_devs = rec_devs, 
+                   revenue = revenue, groundfish_bio = groundfish_bio)
   return(out.list)
 }
 
