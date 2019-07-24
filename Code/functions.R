@@ -1,8 +1,32 @@
 # This function finds the index of a vector containing the value that is closest to a target value.
 # vec: the vector of all values you are taking an index from
 # target: the target for which you want to know which element of vec is closest 
+# Is this function used?
 find_closest <- function(vec, target) {
   which.min(abs(vec - target))
+}
+
+# This function calculated the growth-survival constant from the Deriso-Schnute delay-difference model.
+# groundfish: list containing growth and mortality parameters for the groundfish stock
+# harvest: annual harvest rate
+# w.r: weight at recruitment
+# w.r.minus.1: weight one year prior to recruitment
+get_kappa <- function(groundfish, harvest, w.r, w.r.minus.1){
+  (1 - (1+groundfish$rho) * exp(-groundfish$M) * (1-harvest) + groundfish$rho * exp(-2*groundfish$M) * (1-harvest)^2) /
+    (w.r - groundfish$rho * w.r.minus.1 * exp(-groundfish$M) * (1-harvest))
+}
+
+# This function returns the difference between a target biomass and a calculated equilibrium biomass.
+# It is used to solve for the harvest rate that leads to equilibrium target.bio
+# harvest: annual harvest rate
+# target.bio: biomass for which a harvest rate is desired
+# groundfish: list containing growth and mortality parameters for the groundfish stock
+# w.r: weight at recruitment
+# w.r.minus.1: weight one year prior to recruitment
+solve_harvest_rate <- function(harvest, target.bio, groundfish, w.r, w.r.minus.1){
+  kappa <- get_kappa(groundfish, harvest, w.r, w.r.minus.1)
+  bio.theo <- groundfish$BH_a*exp(-(groundfish$age_at_rec-1)*groundfish$M) / kappa - groundfish$BH_b / (1-harvest)
+  return(target.bio - bio.theo)
 }
 
 # This function simulates two positive random time series that are correlated with one another and are also autocorrelated.
@@ -94,12 +118,13 @@ calc_var_cost <- function(log_avg_cost_per_trip, cost_cv, recruits, wt_at_rec, f
 
 calc_var_cost_groundfish <- function(log_avg_cost_per_trip, cost_cv, N1, bio_init, fishing_season, in_season_dpltn, 
                           fleet_size, fixed_costs, catchability, price, tac = NA, groundfish) {
-  # avg_cost_per_trip <- exp(log_cost_per_trip)
   quantiles <- seq(1/(fleet_size+1), fleet_size/(fleet_size+1), length.out = fleet_size)
   cost_per_trip <- qlnorm(quantiles, log_avg_cost_per_trip - cost_cv^2/2, cost_cv)
-  recruits <- rep(bio_init/(groundfish$BH_a + groundfish$BH_b * bio_init), 4)
+  recruits <- numeric(1000 + groundfish$age_at_rec + 1)
+  recruits[1:(groundfish$age_at_rec-1)] <- exp(-groundfish$M*groundfish$age_at_rec) * 
+    groundfish$BH_a * bio_init / (groundfish$BH_b + bio_init)
   bio_old <- 0
-  ii <- 0
+  ii <- 1
   
   while((abs(bio_old - bio_init) > .00001) & ii < 1000) {
     N <- biomass <- numeric(wks_per_yr)
@@ -115,21 +140,19 @@ calc_var_cost_groundfish <- function(log_avg_cost_per_trip, cost_cv, N1, bio_ini
       yield[wk,] <- did_fish * catchability * biomass[wk]
       revenue <- revenue + yield[wk,] * price
       
-      groundfish_total_survival <- exp(-groundfish$M_wk) * 
-        (1 - catchability * sum(did_fish))
+      groundfish_survival <- 1 - catchability * sum(did_fish)
       if(wk < wks_per_yr) {
-        N[wk+1] <- N[wk] * groundfish_total_survival
-        biomass[wk+1] <- groundfish_total_survival * 
-          (groundfish$alpha * N[wk] + groundfish$rho * biomass[wk])
+        N[wk+1] <- N[wk] * groundfish_survival
+        biomass[wk+1] <- biomass[wk] * groundfish_survival
       }
       
     }
+    groundfish_total_survival <- groundfish$M * (1 - sum(yield)/bio_init)
     bio_temp <- bio_init
-    N1 <- N[wk] * groundfish_total_survival + recruits[1]
-    bio_init <- groundfish_total_survival * 
-      (groundfish$alpha * N[wk] + groundfish$rho * biomass[wk]) + recruits[1]
-    recruits[1:3] <- recruits[2:4]
-    recruits[4] <- exp(-groundfish$M_wk*wks_per_yr*4) * groundfish$BH_a * bio_init/(groundfish$BH_b + bio_init)
+    N1 <- N[1] * groundfish_total_survival + recruits[ii + 1]
+    bio_init <- groundfish_total_survival * (groundfish$alpha * N[1] + groundfish$rho * biomass[1]) + recruits[ii + 1]
+    ssb <- biomass[wks_per_yr] * groundfish_survival
+    recruits[ii + groundfish$age_at_rec - 1] <- exp(-groundfish$M * (groundfish$age_at_rec-1)) * groundfish$BH_a * ssb/(groundfish$BH_b + biomass[wks_per_yr])
     bio_old <- bio_temp
     ii <- ii + 1
   }
@@ -177,8 +200,9 @@ set_up_objects <- function(sim_pars) {
   N[,,1] <- rec_devs <- rmvnorm(n = nyrs, sigma = sigma_mat, mean = log(avg_rec) - recruit_cv^2/2) %>%
     t %>% exp
   dimnames(rec_devs) <- list(spp = spp.names, yr = NULL)
-  N['groundfish',1,1] <- groundfish$N_init
-  groundfish_rec <- groundfish$rec_init * rec_devs['groundfish', 1:4]
+  N['groundfish',1,1] <- groundfish$N_init # include a random recruitment here? will need to know equilibrium harvest rate. 
+  groundfish_rec <- numeric(nyrs)
+  groundfish_rec[1:(groundfish$age_at_rec-1)] <- groundfish$rec_init * rec_devs['groundfish', 1:(groundfish$age_at_rec-1)]
   
   wt_at_rec <- rmvnorm(nyrs, mean = log(avg_wt) - weight_cv^2/2, sigma = weight_cv * diag(npops)) %>% 
     t %>%exp
@@ -292,17 +316,17 @@ run_sim <- function(sim_pars, seed = NA) {
     }
     
     if(yr < nyrs) {
-      groundfish_total_survival <- exp(-groundfish$M) * (1 - sum(Catch['groundfish',yr,,]) / N['groundfish',yr,1])
+      groundfish_total_survival <- exp(-groundfish$M) * (1 - sum(Catch['groundfish',yr,,])/N['groundfish',yr,1])
         
-      N['groundfish',yr+1,1] <- N['groundfish',1] * groundfish_total_survival + groundfish_rec[1]
+      N['groundfish',yr+1,1] <- N['groundfish',yr,1] * groundfish_total_survival + groundfish_rec[yr+1]
       groundfish_bio[yr+1,1] <- groundfish_total_survival * 
-        (groundfish$alpha * N['groundfish',yr,1] + groundfish$rho * groundfish_bio[yr,wks_per_yr]) +
-        groundfish_rec[1] ## assumes weight at recruitment = 1
+        (groundfish$alpha * N['groundfish',yr,1] + groundfish$rho * groundfish_bio[yr,1]) +
+        groundfish_rec[yr+1] ## assumes weight at recruitment = 1
       
-      groundfish_rec[1:3] <- groundfish_rec[2:4]
-      if(yr+4 < nyrs) {
-        ssb <- groundfish_bio[yr,1] * (1 - sum(Catch['groundfish',yr,,]) / N['groundfish',yr,1])
-        groundfish_rec[4] <- rec_devs['groundfish', yr+4] * exp(-groundfish$M_wk*wks_per_yr*4) * 
+      if((yr + groundfish$age_at_rec - 1) < nyrs) {
+        ssb <- (1 - temp_catchability['groundfish'] * sum(effort['groundfish',,wk,yr]))* groundfish_bio[yr,wks_per_yr] 
+        # per Hilborn & Walters, ssb calculated post harvest, pre natural mortality 
+        groundfish_rec[yr+groundfish$age_at_rec - 1] <- rec_devs['groundfish', yr+groundfish$age_at_rec-1] * exp(-groundfish$M*(groundfish$age_at_rec-1)) * 
           groundfish$BH_a * ssb / (groundfish$BH_b + ssb)
       }
     }

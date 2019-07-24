@@ -49,7 +49,7 @@ catchability <- c(.0005, .00005, 6.5*10^(-6));
 # proportion of stock that will be caught by one fleet/ship during one week
 # of fishing
 
-price <- c(1, 1, 2)
+price <- c(1, 1, 1)
 avg_rec <- c(1, 1, 1)
 avg_wt <- c(1, 1, 1)
 
@@ -136,7 +136,8 @@ xx <- run_sim(sim_pars = sim_pars)
 ## Step 1: Convert VBGF * weight-length relationship to the age-weight relationship for a D-D model 
 ##         (based on Ford-Walford plot). Is there a rigorous way to do this? Probably makes little difference...
 a.max <- 50
-ages <- map(1:a.max, ~ .x + 0:(wks_per_yr-1) / wks_per_yr) %>% flatten_dbl 
+ages <- 1:a.max #map(1:a.max, ~ .x + 0:(wks_per_yr-1) / wks_per_yr) %>% flatten_dbl
+age_at_rec <- 4
 l1 <- 26
 l2 <- 60
 t1 <- .5
@@ -146,93 +147,53 @@ lengths <- l1 + (l2-l1) * (1-exp(-vb.k*(ages-t1)))/(1-exp(-vb.k*(t2-t1)))
 weights <- 3*10^(-6)*lengths^3.27
 # recruitment to fishery at age 4
 # fix weight @ recruitment to 1
-age.4.ind <- which(ages==4)
-weights <- weights/weights[age.4.ind]
-mod <- lm(weights[age.4.ind:length(ages)] ~ weights[age.4.ind:length(ages)-1])
+rec.age.ind <- which(ages==age_at_rec)
+weights <- weights/weights[rec.age.ind]
+mod <- lm(weights[rec.age.ind:length(ages)] ~ weights[rec.age.ind:length(ages)-1])
 growth.al <- coef(mod)[1]
 growth.rho <- coef(mod)[2]
-w.r <- 1/2
+w.r <- 1
 w.r.minus.1 <- (w.r - growth.al) / growth.rho
-weights.new <- numeric(length(ages) - 3*wks_per_yr) # start weights.new at age 4.0
+weights.new <- numeric(length(ages) - (age_at_rec - 1)) #*wks_per_yr) # start weights.new at age 4.0
 weights.new[1] <- 1
 for(ii in 2:length(weights.new)) {
   weights.new[ii] <- growth.al + growth.rho * weights.new[ii-1]
 }
-weights.new.yr <- weights.new[0:46 * wks_per_yr + 1]
+# weights.new.yr <- weights.new[0:46 * wks_per_yr + 1]
 
 ## Step 2: Calculate S-R relationship parameters based on stock assessment assumed steepness of 0.6
 M <- 0.07
-M_wk <- M/wks_per_yr
+# M_wk <- M/wks_per_yr
 # calculate age 1+ age structure (but assume S-R relationship is for recruitment at age 0)
 age.struc <- map_dbl(1:a.max, function(.x) exp(-M * .x)) 
 age.struc[a.max] <- age.struc[a.max] / (1 - exp(-M))
 # Age 4 recruitment to fishery/spawning stock (assume same age)
-sbpr0 <- sum(age.struc[4:a.max] * weights.new.yr)
+sbpr0 <- sum(age.struc[age_at_rec:a.max] * weights.new)
 steepness <- 0.6
 R0 <- 1
-a <- sbpr0 * (1 - (steepness - 0.2)/(0.8 * steepness))
-b <- (steepness - 0.2) / (0.8 * steepness * R0)
-groundfish <- list(M_wk = M_wk, BH_a = a, BH_b = b, alpha = growth.al, rho = growth.rho)
-
-# I tried doing this based on equilibrium biomasses from Hilborn & Walters, but the answers didn't seem right.
-# So I did it the brute force way instead. The answer was different. This seems more likely to be right.
-
-nyrs <- 300 # checked, this is sufficient to reach equilibrium @ B0 (which is slowest to converge)
-harvest.seq <- seq(from = 0, to = .15/wks_per_yr, length.out = 500)
-yield.seq <- bio.seq <- N.seq <- rec.seq <- numeric(length(harvest.seq))
-
-for(ii in 1:length(harvest.seq)) {
-  harvest <- harvest.seq[ii]
-  groundfish_bio <- groundfish_N <- matrix(0, nrow = nyrs, ncol = wks_per_yr)
-  groundfish_bio[1,] <- groundfish_N[1,] <- 1
-  groundfish_rec <- rep(1,4)
-
-  for(yr in 2:nyrs) {
-    yield <- 0
-    # move this to the end. start loop at 1.
-    groundfish_total_survival <- exp(-groundfish$M_wk) * (1-harvest)
-    groundfish_N[yr,1] <- groundfish_N[yr-1,wks_per_yr] * groundfish_total_survival + groundfish_rec[1]
-    groundfish_bio[yr,1] <- groundfish_total_survival * 
-      (groundfish$alpha * groundfish_N[yr-1,wks_per_yr] + groundfish$rho * groundfish_bio[yr-1,wks_per_yr]) +
-      groundfish_rec[1] ## assumes weight at recruitment = 1
-    
-    groundfish_rec[1:3] <- groundfish_rec[2:4]
-    if(yr+4 < nyrs) {
-      groundfish_rec[4] <- exp(-groundfish$M_wk*wks_per_yr*4) * 
-        groundfish$BH_a * groundfish_bio[yr,1] / (groundfish$BH_b + groundfish_bio[yr,1])
-    }
-    
-    for(wk in 1:(wks_per_yr-1)) {
-      groundfish_total_survival <- exp(-groundfish$M_wk) * (1-harvest)
-      groundfish_N[yr,wk+1] <- groundfish_N[yr,wk] * groundfish_total_survival
-      groundfish_bio[yr,wk+1] <- groundfish_total_survival * 
-        (groundfish$alpha * groundfish_N[yr,wk] + groundfish$rho * groundfish_bio[yr,wk])
-      yield <- yield + harvest * groundfish_bio[yr,wk]
-    }
-    yield <- yield + harvest * groundfish_bio[yr,wks_per_yr]
-  }
-  yield.seq[ii] <- yield
-  bio.seq[ii] <- groundfish_bio[nyrs,1]
-  N.seq[ii] <- groundfish_N[nyrs,1]
-  rec.seq[ii] <- groundfish_rec[1]
-}
-
-bio.seq[which.min(abs(bio.seq - 0.4 * bio.seq[1]))]
-0.4 * bio.seq[1]
-plot(harvest.seq, yield.seq, pch = '.')
-plot(bio.seq, yield.seq, pch = '.')
-
-R0 <- 1/bio.seq[find_closest(bio.seq, 0.4 * bio.seq[1])] # set R0 so B40 = 3
 a <- 4 * steepness * R0 / (5 * steepness - 1)
 b <- sbpr0 * (1 - steepness) / (5 * steepness - 1)
-groundfish$BH_a <- a
-groundfish$BH_b <- b
-# Set initial conditions based on equilibrium results here.
+groundfish <- list(M = M, BH_a = a, BH_b = b, alpha = growth.al, rho = growth.rho, age_at_rec = age_at_rec)
 
+## Step 3: Reset R0 so that B40% = 1
+kappa <- get_kappa(groundfish = groundfish, harvest = 0, w.r = w.r, w.r.minus.1 = w.r.minus.1)
+
+groundfish$BH_a <- (1/.4 + groundfish$BH_b) * kappa / exp(-groundfish$M * (groundfish$age_at_rec-1))
+# this makes B0 = 2.5, so that B40% = .4*2.5 = 1
+# target B0 is 1/.4, i.e., first term
+
+groundfish$BH_a * (5 * steepness - 1) / (4 * steepness) 
+# calculate R0 for fun
+
+b40.harvest <- uniroot(solve_harvest_rate, interval = c(0,.1), target.bio = 1, groundfish = groundfish, w.r = w.r, w.r.minus.1 = w.r.minus.1)$root
+b40.rec <- exp(-groundfish$M * (groundfish$age_at_rec-1)) * groundfish$BH_a * 1 * (1-b40.harvest) / (groundfish$BH_b + 1 * (1-b40.harvest)) # recruitment to age 4
+N40 <- b40.rec / (1 - exp(-groundfish$M) * (1-b40.harvest))
+
+## Step 4: Calculate variable costs! (Try to force annual harvest rate to b40.harvest by letting catchability vary?)
 xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv,
                          fishing_season = pop_seasons['groundfish',], bio_init = 1,
-                         N1 = N.seq[find_closest(bio.seq, 1)], fleet_size = 200, in_season_dpltn = TRUE,
-                         fixed_costs = .00002, catchability = 6.5*10^(-6), price = 2, tac = NA, groundfish = groundfish)
+                         N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
+                         fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
 
 # calc_var_cost_groundfish(log_avg_cost_per_trip = -11.9, cost_cv = cost_cv, 
 #               fishing_season = pop_seasons['groundfish',], bio_init = 1, 
@@ -253,18 +214,8 @@ sim_pars$groundfish <- groundfish
 sim_pars$cost_per_trip['groundfish'] <- exp(xx$root)
 
 
-# I looked at the S-R relationship. The weekly growth/mortality but annual recruitment made actual R0 less than the
-# parameter R0. However, steepness was still 0.6, so I am proceeding.
-
-# Dan ?: I have avg rec for salmon, crabs = 1. What is equivalent for groundfish? B_MSY = 1? Initial condition?
-
 # Beverton-Holt S-R relationship: R = a*SSB/(b+SSB)
-# aim for SSB_MSY = 1 instead of R0 = 1? Or something else?
 
-## Groundfish to do:
-## 1. Change population dynamics to annual for cost setting and simulation functions. Can then use analytic equilibrium conditions.
-## 2.  
 
 ## Good coding practices:
 ## a) All of this could be written to be conditional on having a stock called "groundfish"
-## b) Right now, age at recruitment to fishery (4) is hard-coded in. Make this flexible? (Unclear age 4 is best choice?)
