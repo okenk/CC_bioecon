@@ -154,48 +154,86 @@ growth.al <- coef(mod)[1]
 growth.rho <- coef(mod)[2]
 w.r <- 1
 w.r.minus.1 <- (w.r - growth.al) / growth.rho
-weights.new <- numeric(length(ages) - (age_at_rec - 1)) #*wks_per_yr) # start weights.new at age 4.0
-weights.new[1] <- 1
-for(ii in 2:length(weights.new)) {
-  weights.new[ii] <- growth.al + growth.rho * weights.new[ii-1]
-}
+# weights.new <- numeric(length(ages) - (age_at_rec - 1)) #*wks_per_yr) # start weights.new at age 4.0
+# weights.new[1] <- 1
+# for(ii in 2:length(weights.new)) {
+#   weights.new[ii] <- growth.al + growth.rho * weights.new[ii-1]
+# }
 # weights.new.yr <- weights.new[0:46 * wks_per_yr + 1]
 
 ## Step 2: Calculate S-R relationship parameters based on stock assessment assumed steepness of 0.6
 M <- 0.07
 # M_wk <- M/wks_per_yr
 # calculate age 1+ age structure (but assume S-R relationship is for recruitment at age 0)
-age.struc <- map_dbl(1:a.max, function(.x) exp(-M * .x)) 
-age.struc[a.max] <- age.struc[a.max] / (1 - exp(-M))
-# Age 4 recruitment to fishery/spawning stock (assume same age)
-sbpr0 <- sum(age.struc[age_at_rec:a.max] * weights.new)
+# age.struc <- map_dbl(1:a.max, function(.x) exp(-M * .x)) 
+# age.struc[a.max] <- age.struc[a.max] / (1 - exp(-M))
+# # Age 4 recruitment to fishery/spawning stock (assume same age)
+# sbpr0 <- sum(age.struc[age_at_rec:a.max] * weights.new)
 steepness <- 0.6
-R0 <- 1
-a <- 4 * steepness * R0 / (5 * steepness - 1)
-b <- sbpr0 * (1 - steepness) / (5 * steepness - 1)
-groundfish <- list(M = M, BH_a = a, BH_b = b, alpha = growth.al, rho = growth.rho, age_at_rec = age_at_rec)
+R0 <- .5
+groundfish <- list(M = M, steepness = steepness, R0 = R0, alpha = growth.al, rho = growth.rho, age_at_rec = age_at_rec)
 
-## Step 3: Reset R0 so that B40% = 1
+## Step 3: Reset R0 so that sustainable yield at B40% = 1
 kappa <- get_kappa(groundfish = groundfish, harvest = 0, w.r = w.r, w.r.minus.1 = w.r.minus.1)
+B0 <- R0 / kappa
+groundfish$B0 <- B0
 
-groundfish$BH_a <- (1/.4 + groundfish$BH_b) * kappa / exp(-groundfish$M * (groundfish$age_at_rec-1))
-# this makes B0 = 2.5, so that B40% = .4*2.5 = 1
-# target B0 is 1/.4, i.e., first term
+B40 <- .4*B0
+h40 <- uniroot(solve_harvest_rate, interval = c(0,.1), target.bio = B40, groundfish = groundfish, w.r = w.r, w.r.minus.1 = w.r.minus.1)$root
+R40 <- beverton_holt(B40*(1-h40), groundfish$steepness, groundfish$R0, groundfish$B0)
 
-groundfish$BH_a * (5 * steepness - 1) / (4 * steepness) 
-# calculate R0 for fun
+calc_groundfish_q <- function(log_q, wks_per_yr, target, nships) {
+  B <- 1
+  q <- exp(log_q)
+  Catch.per.boat <- 0
+  for(wk in 1:wks_per_yr){
+    Catch.per.boat <- Catch.per.boat + q*B
+    B <- B - nships * q * B
+    if(B<=0) break
+  }
+  return(Catch.per.boat * nships - target)
+}
 
-b40.harvest <- uniroot(solve_harvest_rate, interval = c(0,.1), target.bio = 1, groundfish = groundfish, w.r = w.r, w.r.minus.1 = w.r.minus.1)$root
-b40.rec <- exp(-groundfish$M * (groundfish$age_at_rec-1)) * groundfish$BH_a * 1 * (1-b40.harvest) / (groundfish$BH_b + 1 * (1-b40.harvest)) # recruitment to age 4
-N40 <- b40.rec / (1 - exp(-groundfish$M) * (1-b40.harvest))
+xx <- uniroot(calc_groundfish_q, interval = c(log(10^(-8)), log(.01)), wks_per_yr = wks_per_yr, target = h40, nships = 200)
+sim_pars$catchability['groundfish'] <- exp(xx$root)
+revenue <- price['groundfish'] * h40 * B40 / 200
+
+B <- B40
+q <- sim_pars$catchability['groundfish']
+Catch.per.boat <- 0
+for(wk in 1:wks_per_yr){
+  Catch.per.boat <- Catch.per.boat + q*B
+  if(wk==wks_per_yr) min_rev <- q*B*price['groundfish']
+  B <- B - nships * q * B
+}
+
+min_rev * wks_per_yr
+
+# First pass: adjust R0. 1 was just too big. Tried 0.1, seemed too small to support much revenue. Went with 0.5
+# Second pass: adjust cost_per_trip. Current cost means 20% of costs are fixed costs for the fisher with highest variable costs.
+# I am happy with this?
+# Time to run it on Monday?!?
+sim_pars$cost_per_trip['groundfish'] <- 1.5*10^(-5)
+qlnorm(200/201, log(cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv)
+(revenue - qlnorm(200/201, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv) * wks_per_yr)/revenue
+
+
 
 ## Step 4: Calculate variable costs! (Try to force annual harvest rate to b40.harvest by letting catchability vary?)
 xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv,
-                         fishing_season = pop_seasons['groundfish',], bio_init = 1,
+                         fishing_season = pop_seasons['groundfish',], bio_init = b40,
                          N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
-                         fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
+                         fixed_costs = .00002, catchability = 5*10^(-6), price = 1, tac = NA, groundfish = groundfish, tol = 10^(-6))
 
-# calc_var_cost_groundfish(log_avg_cost_per_trip = -11.9, cost_cv = cost_cv, 
+# This function is funky. The profit at the root (profit of a marginal vessel) is always 2e-5, which is the fixed cost. This is not the case for salmon & crab. 
+# The value of the root as a function of catchability also seems oddly discountinous. You get reasonable roots at q = 5e-6 and 7e-6 but basically no fishing at 6e-6.
+
+calc_var_cost_groundfish(log_avg_cost_per_trip = xx$root, cost_cv = cost_cv,
+fishing_season = pop_seasons['groundfish',], bio_init = b40,
+N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
+fixed_costs = .00002, catchability = 5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
+
+b40# calc_var_cost_groundfish(log_avg_cost_per_trip = -11.9, cost_cv = cost_cv, 
 #               fishing_season = pop_seasons['groundfish',], bio_init = 1, 
 #               N1 = N.seq[find_closest(bio.seq, 1)], fleet_size = 200, in_season_dpltn = TRUE, 
 #               fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)

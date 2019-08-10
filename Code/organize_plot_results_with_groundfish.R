@@ -4,7 +4,7 @@ library(tidyr)
 
 # Recruitment synchrony ---------------------------------------------------
 res.list <- list()
-corr.par <- c(0.4, 0, -0.4)
+corr.par <- c(0.7, 0, -0.7)
 for(ii in 1:3) {
   set.seed(53209823)
   sim_pars$recruit_corr <- corr.par[ii]
