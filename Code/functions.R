@@ -28,24 +28,28 @@ solve_harvest_rate <- function(harvest, target.bio, groundfish, w.r, w.r.minus.1
   return(target.bio - bio.theo)
 }
 
-# This function simulates two positive random time series that are correlated with one another and are also autocorrelated.
+# This function simulates an arbitrary number of positive time series that are correlated with one another and are also autocorrelated.
 # corr: correlation between the two time series, on the log-scale 
 # ar: autoregressive parameter for each time series, on the log-scale
 # cv: SD of each time series on the log-scale (approximate CV on the actual scale)
 # mn: mean of the time series, on the log-scale. No bias correction is done, so bias correction should be done prior
 #     to running this function
-sim_correlated_ar_ts <- function(corr, ar, cv, mn, nyrs, npops) {
-  if(npops > 2) {
-    stop('Can only generate synchronous autocorrelated time series for two populations')
+sim_correlated_ar_ts <- function(corr, autocorr, cv, mn, nyrs, npops) {
+  sigma.mat <- matrix(0, nrow = npops, ncol = npops)
+  diag(sigma.mat) <- cv^2 * (1-autocorr^2)
+  for(pop1 in 1:(npops-1)) {
+    for(pop2 in (pop1+1):npops) {
+      sigma.mat[pop1, pop2] <- sigma.mat[pop2, pop1] <- corr * (1-autocorr[pop1]*autocorr[pop2]) * cv^2
+    }
   }
+
+  
   burn.in <- 300
-  q12 <- corr * (1 - ar[1] * ar[2]) * (cv[1] * cv[2])
-  q.diag <- cv^2 * (1 - ar^2)
-  eps <- rmvnorm(nyrs + burn.in, c(0,0), cbind(c(q.diag[1], q12), c(q12, q.diag[2]))) %>%
+  eps <- rmvnorm(nyrs + burn.in, rep(0,npops), sigma.mat) %>%
     as.data.frame()
   
-  out.ts <- map2(eps, ar, function(.x, .y)
-    as.vector(arima.sim(list(ar = .y), nyrs, innov = .x[burn.in+1:nyrs], start.innov = .x[1:burn.in]))) %>%
+  out.ts <- map2(eps, autocorr, function(.x, .y)
+    as.vector(arima.sim(list(ar = .y), nyrs, innov = .x[burn.in+1:nyrs], start.innov = .x[1:burn.in]))) %>% 
     map2(mn, ~ exp(.x + .y)) %>%
     bind_cols() %>%
     as.matrix()
@@ -199,12 +203,12 @@ set_up_objects <- function(sim_pars) {
   
   N <- array(0, dim = c(npops, nyrs, wks_per_yr), dimnames = list(spp = spp.names, yr = NULL, wk = NULL))
  
-  # N[,,1] <- sim_correlated_ar_ts(corr = recruit_corr, ar = recruit_ar, cv = recruit_cv, 
-  #                                mn = log(avg_rec) - recruit_cv^2/2, nyrs = nyrs, npops = npops) %>% t()
-  sigma_mat <- matrix(recruit_corr * recruit_cv^2, nrow = npops, ncol = npops)
-  diag(sigma_mat) <- recruit_cv^2
-  N[,,1] <- rec_devs <- rmvnorm(n = nyrs, sigma = sigma_mat, mean = log(avg_rec) - recruit_cv^2/2) %>%
-    t %>% exp
+  N[,,1] <- rec_devs <- sim_correlated_ar_ts(corr = recruit_corr, autocorr = recruit_ar, cv = recruit_cv,
+                                             mn = log(avg_rec) - recruit_cv^2/2, nyrs = nyrs, npops = npops) %>% t()
+  # sigma_mat <- matrix(recruit_corr * recruit_cv^2, nrow = npops, ncol = npops)
+  # diag(sigma_mat) <- recruit_cv^2
+  # N[,,1] <- rec_devs <- rmvnorm(n = nyrs, sigma = sigma_mat, mean = log(avg_rec) - recruit_cv^2/2) %>%
+  #   t %>% exp
   dimnames(rec_devs) <- list(spp = spp.names, yr = NULL)
   N['groundfish',1,1] <- groundfish$N_init # include a random recruitment here? will need to know equilibrium harvest rate. 
   groundfish_rec <- numeric(nyrs)
@@ -213,7 +217,6 @@ set_up_objects <- function(sim_pars) {
   wt_at_rec <- rmvnorm(nyrs, mean = log(avg_wt) - weight_cv^2/2, sigma = weight_cv * diag(npops)) %>% 
     t %>%exp
   dimnames(wt_at_rec) <- list(spp = spp.names, yr = NULL)
-  
   salmon_tac <- N['salmon',,1] * salmon_tac_rule
 
   # simulate cost per trip for each ship in each fleet

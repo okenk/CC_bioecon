@@ -4,7 +4,7 @@ library(tidyr)
 
 # Recruitment synchrony ---------------------------------------------------
 res.list <- list()
-corr.par <- c(0.7, 0, -0.7)
+corr.par <- c(0.5, 0, -0.5)
 for(ii in 1:3) {
   set.seed(53209823)
   sim_pars$recruit_corr <- corr.par[ii]
@@ -27,9 +27,9 @@ Catch.df %>%
 
 sim_pars$recruit_corr <- 0
 fleet_distn <- list()
-fleet_distn$"easy access" <- c(109,109,109,25,25,25)
-fleet_distn$"even access" <- rep(100,3)
-fleet_distn$"hard access" <- c(25,25,25,109,109,109)
+fleet_distn$"easy access" <- c(25,25,25,109,109,109)
+fleet_distn$"even access" <- rep(67,6)
+fleet_distn$"hard access" <- c(109,109,109,25,25,25)
 
 res.list <- list()
 for(ii in 1:3) {
@@ -60,6 +60,10 @@ for(ii in 1:3) {
 }
 timing <- res.list
 
+
+make_half_baked_plots(synchrony, 'sync', 'rec_corr', 0)
+make_half_baked_plots(access, 'access', 'access', 'even access')
+make_think_tank_plots(timing, 'timing', 'timing', 'normal')
 
 make_half_baked_plots(synchrony, 'sync', 'rec_corr', 0)
 make_think_tank_plots(access, 'access', 'access', 'even access')

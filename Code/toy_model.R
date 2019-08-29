@@ -45,16 +45,17 @@ pop_seasons['salmon', 47] <- 1
 # pop_seasons['salmon', 47] <- 0.7
 pop_seasons['salmon', 48:wks_per_yr] <- 0;
 
-catchability <- c(.0005, .00005, 6.5*10^(-6));
+catchability <- c(.0005, .00005, 0);
 # proportion of stock that will be caught by one fleet/ship during one week
 # of fishing
+# groundfish gets set below
 
 price <- c(1, 1, 1)
-avg_rec <- c(1, 1, 1)
+avg_rec <- c(1, 1, 1) # groundfish must be set to 1, this is the mean of the multiplicative errors in that case
 avg_wt <- c(1, 1, 1)
 
 weight_cv <- 0 # sqrt(log(0.2^2+1))
-recruit_cv <- rep(sqrt(log(0.5^2+1)), npops)
+recruit_cv <- sqrt(log(0.6^2+1))
 recruit_ar <- c(.3,.3, 3)
 recruit_corr <- 0
 
@@ -64,7 +65,7 @@ cost_cv <- sqrt(log(.15^2+1))
 cost_corr <- 0.7
 
 names(catchability) <- names(price) <- names(avg_rec) <- names(avg_wt) <- names(fixed_costs) <- names(cost_per_trip) <- 
-  names(recruit_cv) <- names(recruit_ar) <- spp.names
+  names(recruit_ar) <- spp.names
 
 salmon_tac_rule <- 0.3
 
@@ -181,6 +182,7 @@ groundfish$B0 <- B0
 B40 <- .4*B0
 h40 <- uniroot(solve_harvest_rate, interval = c(0,.1), target.bio = B40, groundfish = groundfish, w.r = w.r, w.r.minus.1 = w.r.minus.1)$root
 R40 <- beverton_holt(B40*(1-h40), groundfish$steepness, groundfish$R0, groundfish$B0)
+N40 <- R40/(1-exp(-groundfish$M)*(1-h40))
 
 calc_groundfish_q <- function(log_q, wks_per_yr, target, nships) {
   B <- 1
@@ -207,33 +209,33 @@ for(wk in 1:wks_per_yr){
   B <- B - nships * q * B
 }
 
-min_rev * wks_per_yr
-
 # First pass: adjust R0. 1 was just too big. Tried 0.1, seemed too small to support much revenue. Went with 0.5
 # Second pass: adjust cost_per_trip. Current cost means 20% of costs are fixed costs for the fisher with highest variable costs.
 # I am happy with this?
 # Time to run it on Monday?!?
 sim_pars$cost_per_trip['groundfish'] <- 1.5*10^(-5)
-qlnorm(200/201, log(cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv)
-(revenue - qlnorm(200/201, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv) * wks_per_yr)/revenue
+qlnorm(.95, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv)
+sim_pars$fixed_costs['groundfish'] <- (revenue - qlnorm(.95, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv) * wks_per_yr)
 
+# ensure worst boat covers its variable costs so it fishes all year
+min_rev > qlnorm(200/201, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv)
 
 
 ## Step 4: Calculate variable costs! (Try to force annual harvest rate to b40.harvest by letting catchability vary?)
-xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv,
-                         fishing_season = pop_seasons['groundfish',], bio_init = b40,
-                         N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
-                         fixed_costs = .00002, catchability = 5*10^(-6), price = 1, tac = NA, groundfish = groundfish, tol = 10^(-6))
-
-# This function is funky. The profit at the root (profit of a marginal vessel) is always 2e-5, which is the fixed cost. This is not the case for salmon & crab. 
-# The value of the root as a function of catchability also seems oddly discountinous. You get reasonable roots at q = 5e-6 and 7e-6 but basically no fishing at 6e-6.
-
-calc_var_cost_groundfish(log_avg_cost_per_trip = xx$root, cost_cv = cost_cv,
-fishing_season = pop_seasons['groundfish',], bio_init = b40,
-N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
-fixed_costs = .00002, catchability = 5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
-
-b40# calc_var_cost_groundfish(log_avg_cost_per_trip = -11.9, cost_cv = cost_cv, 
+# xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv,
+#                          fishing_season = pop_seasons['groundfish',], bio_init = b40,
+#                          N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
+#                          fixed_costs = .00002, catchability = 5*10^(-6), price = 1, tac = NA, groundfish = groundfish, tol = 10^(-6))
+# 
+# # This function is funky. The profit at the root (profit of a marginal vessel) is always 2e-5, which is the fixed cost. This is not the case for salmon & crab. 
+# # The value of the root as a function of catchability also seems oddly discountinous. You get reasonable roots at q = 5e-6 and 7e-6 but basically no fishing at 6e-6.
+# 
+# calc_var_cost_groundfish(log_avg_cost_per_trip = xx$root, cost_cv = cost_cv,
+# fishing_season = pop_seasons['groundfish',], bio_init = b40,
+# N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
+# fixed_costs = .00002, catchability = 5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
+# 
+# b40# calc_var_cost_groundfish(log_avg_cost_per_trip = -11.9, cost_cv = cost_cv, 
 #               fishing_season = pop_seasons['groundfish',], bio_init = 1, 
 #               N1 = N.seq[find_closest(bio.seq, 1)], fleet_size = 200, in_season_dpltn = TRUE, 
 #               fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
@@ -244,12 +246,10 @@ b40# calc_var_cost_groundfish(log_avg_cost_per_trip = -11.9, cost_cv = cost_cv,
 #               N1 = N.seq[find_closest(yield.seq[1:295], 0.05718231)], fleet_size = 200, in_season_dpltn = TRUE, 
 #               fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
 
-groundfish$b_init <- 0.984438786700563
-groundfish$N_init <- N.seq[find_closest(bio.seq, 0.984438786700563)]
-groundfish$rec_init <- rec.seq[find_closest(bio.seq, 0.984438786700563)]
+groundfish$b_init <- B40
+groundfish$N_init <- N40
+groundfish$rec_init <- R40
 sim_pars$groundfish <- groundfish
-
-sim_pars$cost_per_trip['groundfish'] <- exp(xx$root)
 
 
 # Beverton-Holt S-R relationship: R = a*SSB/(b+SSB)

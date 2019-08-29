@@ -42,7 +42,7 @@ make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
                             yr %in% yrs),
               aes(x = wk, y = catch, group = yr, col = factor(yr))) +
     ylab('Catch (weight)') 
-  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_catch.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/8_19/', sim.file.name, '_catch.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- plt +
@@ -51,7 +51,7 @@ make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
                             yr %in% yrs),
               aes(x = wk, y = n_ships, group = yr, col = factor(yr))) +
     ylab('Effort (number of ships)') 
-  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_effort.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/8_19/', sim.file.name, '_effort.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- plt +
@@ -60,7 +60,7 @@ make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
                             yr %in% yrs),
               aes(x = wk, y = catch/n_ships, group = yr, col = factor(yr))) +
     ylab('CPUE') 
-  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_cpue.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/8_19/', sim.file.name, '_cpue.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   profit.df <- map_dfr(res.list, function(corr.val)
@@ -101,7 +101,7 @@ make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Revenue CV') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_rev.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/8_19/', sim.file.name, '_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- ggplot(income.summary) +
@@ -115,7 +115,7 @@ make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Mean revenue') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_avg_rev.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/8_19/', sim.file.name, '_avg_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- ggplot(income.summary) +
@@ -129,7 +129,7 @@ make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Profit SD') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_profit.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/8_19/', sim.file.name, '_profit.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
   to.save <- ggplot(income.summary) +
@@ -143,7 +143,7 @@ make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Mean profit') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_avg_prof.png'), plot = to.save, height = 4, width = 9,
+  ggsave(filename = paste0('Figures/8_19/', sim.file.name, '_avg_prof.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
 
     to.save <- ggplot(income.summary) +
@@ -156,7 +156,7 @@ make_half_baked_plots <- function(res.list, sim.file.name, sim.id, base.value) {
     xlab('Revenue CV') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     NULL 
-  ggsave(filename = paste0('Figures/half_baked/', sim.file.name, '_rev_agg.png'), plot = to.save, height = 5, width = 7,
+  ggsave(filename = paste0('Figures/8_19/', sim.file.name, '_rev_agg.png'), plot = to.save, height = 5, width = 7,
          units = 'in', dpi = 500)
   
 }
