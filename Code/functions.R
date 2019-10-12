@@ -34,12 +34,13 @@ solve_harvest_rate <- function(harvest, target.bio, groundfish, w.r, w.r.minus.1
 # cv: SD of each time series on the log-scale (approximate CV on the actual scale)
 # mn: mean of the time series, on the log-scale. No bias correction is done, so bias correction should be done prior
 #     to running this function
-sim_correlated_ar_ts <- function(corr, autocorr, cv, mn, nyrs, npops) {
+# ind_pops: Index of any populations that are independent of the others
+sim_correlated_ar_ts <- function(corr, autocorr, cv, mn, nyrs, npops, ind_pops = NULL) {
   sigma.mat <- matrix(0, nrow = npops, ncol = npops)
   diag(sigma.mat) <- cv^2 * (1-autocorr^2)
   for(pop1 in 1:(npops-1)) {
     for(pop2 in (pop1+1):npops) {
-      sigma.mat[pop1, pop2] <- sigma.mat[pop2, pop1] <- corr * (1-autocorr[pop1]*autocorr[pop2]) * cv^2
+      sigma.mat[pop1, pop2] <- sigma.mat[pop2, pop1] <- corr * (1-autocorr[pop1]*autocorr[pop2]) * cv^2 * !(pop1 %in% ind_pops | pop2 %in% ind_pops)
     }
   }
 
@@ -204,7 +205,8 @@ set_up_objects <- function(sim_pars) {
   N <- array(0, dim = c(npops, nyrs, wks_per_yr), dimnames = list(spp = spp.names, yr = NULL, wk = NULL))
  
   N[,,1] <- rec_devs <- sim_correlated_ar_ts(corr = recruit_corr, autocorr = recruit_ar, cv = recruit_cv,
-                                             mn = log(avg_rec) - recruit_cv^2/2, nyrs = nyrs, npops = npops) %>% t()
+                                             mn = log(avg_rec) - recruit_cv^2/2, nyrs = nyrs, npops = npops, 
+                                             ind_pops = ind_pops) %>% t()
   # sigma_mat <- matrix(recruit_corr * recruit_cv^2, nrow = npops, ncol = npops)
   # diag(sigma_mat) <- recruit_cv^2
   # N[,,1] <- rec_devs <- rmvnorm(n = nyrs, sigma = sigma_mat, mean = log(avg_rec) - recruit_cv^2/2) %>%
@@ -245,7 +247,7 @@ set_up_objects <- function(sim_pars) {
 
 # This function simulates the fleets and populations for a bunch of years with weekly time steps. Returns catch, profits, 
 # recruitment, number of ships in the multi-fishery fleet fishing for crab each week of each year
-run_sim <- function(sim_pars, seed = NA) {
+run_sim <- function(sim_pars, seed = NA, long_output = TRUE) {
   if(!is.na(seed)) set.seed(seed)
   setup.ls <- set_up_objects(sim_pars)
   list2env(setup.ls, sys.frame(sys.nframe()))
@@ -340,9 +342,12 @@ run_sim <- function(sim_pars, seed = NA) {
       }
     }
   }
-  
-  out.list <- list(Catch = Catch, profits = profits, effort = effort, rec_devs = rec_devs, 
+  if(long_output) {
+    out.list <- list(Catch = Catch, profits = profits, effort = effort, rec_devs = rec_devs, 
                    revenue = revenue, groundfish_bio = groundfish_bio)
+  } else {
+    out.list <- list(profits = profits, revenue = revenue)
+  }
   return(out.list)
 }
 

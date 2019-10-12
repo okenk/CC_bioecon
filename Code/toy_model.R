@@ -1,6 +1,5 @@
-library(dplyr)
+library(tidyverse)
 library(mvtnorm)
-library(purrr)
 source('Code/functions.R')
 Rcpp::sourceCpp("Code/getBestSpp.cpp")
 
@@ -56,7 +55,7 @@ avg_wt <- c(1, 1, 1)
 
 weight_cv <- 0 # sqrt(log(0.2^2+1))
 recruit_cv <- sqrt(log(0.6^2+1))
-recruit_ar <- c(.3,.3, 3)
+recruit_ar <- c(.3,.3, .3)
 recruit_corr <- 0
 
 fixed_costs <- c(.0025, .0001, .00002)
@@ -76,7 +75,7 @@ sim_pars <- list(spp.names = spp.names, fleets = fleets, wks_per_yr = wks_per_yr
                  nfleets = nfleets, ships_per_fleet = ships_per_fleet, nships = nships, fleet_permits = fleet_permits,
                  pop_seasons = pop_seasons, catchability = catchability, price = price, avg_rec = avg_rec, 
                  avg_wt = avg_wt, weight_cv = weight_cv, recruit_cv = recruit_cv, recruit_ar = recruit_ar, 
-                 recruit_corr = recruit_corr, fixed_costs = fixed_costs, cost_per_trip = cost_per_trip, 
+                 recruit_corr = recruit_corr, ind_pops = 0, fixed_costs = fixed_costs, cost_per_trip = cost_per_trip, 
                  cost_cv = cost_cv, cost_corr = cost_corr, salmon_tac_rule = salmon_tac_rule,
                  crab_price_cutoff = crab_price_cutoff, crab_price_pars = crab_price_pars)
 
@@ -130,7 +129,7 @@ sim_pars$cost_per_trip['salmon'] <- exp(xx$root)
 
 # Run model! --------------------------------------------------------------
 
-xx <- run_sim(sim_pars = sim_pars)
+# xx <- run_sim(sim_pars = sim_pars)
 
 # Groundfish model setup --------------------------------------------------
 
@@ -196,30 +195,29 @@ calc_groundfish_q <- function(log_q, wks_per_yr, target, nships) {
   return(Catch.per.boat * nships - target)
 }
 
-xx <- uniroot(calc_groundfish_q, interval = c(log(10^(-8)), log(.01)), wks_per_yr = wks_per_yr, target = h40, nships = 200)
+xx <- uniroot(calc_groundfish_q, interval = c(log(10^(-8)), log(.01)), wks_per_yr = 40, target = h40, nships = 200)
 sim_pars$catchability['groundfish'] <- exp(xx$root)
 revenue <- price['groundfish'] * h40 * B40 / 200
 
 B <- B40
 q <- sim_pars$catchability['groundfish']
 Catch.per.boat <- 0
-for(wk in 1:wks_per_yr){
+for(wk in 1:40){
   Catch.per.boat <- Catch.per.boat + q*B
-  if(wk==wks_per_yr) min_rev <- q*B*price['groundfish']
+  if(wk==40) min_rev <- q*B*price['groundfish']
   B <- B - nships * q * B
 }
 
 # First pass: adjust R0. 1 was just too big. Tried 0.1, seemed too small to support much revenue. Went with 0.5
-# Second pass: adjust cost_per_trip. Current cost means 20% of costs are fixed costs for the fisher with highest variable costs.
+# Second pass: adjust cost_per_trip. Current cost means 29% of costs are fixed costs for the fisher with average variable costs.
 # I am happy with this?
 # Time to run it on Monday?!?
-sim_pars$cost_per_trip['groundfish'] <- 1.5*10^(-5)
-qlnorm(.95, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv)
-sim_pars$fixed_costs['groundfish'] <- (revenue - qlnorm(.95, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv) * wks_per_yr)
+sim_pars$cost_per_trip['groundfish'] <- 2*10^(-5)
+sim_pars$fixed_costs['groundfish'] <- (revenue - qlnorm(.95, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv) * 40)
 
 # ensure worst boat covers its variable costs so it fishes all year
 min_rev > qlnorm(200/201, log(sim_pars$cost_per_trip['groundfish']) - cost_cv^2/2, cost_cv)
-
+sim_pars$fixed_costs['groundfish']/revenue
 
 ## Step 4: Calculate variable costs! (Try to force annual harvest rate to b40.harvest by letting catchability vary?)
 # xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv,
