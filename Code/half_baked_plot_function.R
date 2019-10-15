@@ -63,16 +63,16 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
   # ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_cpue.png'), plot = to.save, height = 4, width = 9,
   #        units = 'in', dpi = 500)
   # 
-  profit.df <- map_dfr(res.list, function(corr.val)
-    map_dfr(corr.val, function(sim.res) {
+  profit.df <- map_dfr(res.list, function(sim.par)
+    map_dfr(sim.par, function(sim.res) {
       melt(sim.res$profits, value.name = 'profit') %>%
         as_tibble()
     },
     .id = 'sim_number'),
     .id = sim.id)
   
-  revenue.df <- map_dfr(res.list, function(corr.val)
-    map_dfr(corr.val, function(sim.res) {
+  revenue.df <- map_dfr(res.list, function(sim.par)
+    map_dfr(sim.par, function(sim.res) {
       melt(sim.res$revenue, value.name = 'revenue') %>%
         as_tibble()
     },

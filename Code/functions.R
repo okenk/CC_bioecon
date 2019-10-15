@@ -193,8 +193,10 @@ set_up_objects <- function(sim_pars) {
   profits <- array(-t(fleet_permits) %*% fixed_costs, dim = c(nfleets, nships, nyrs),  
                    dimnames = list(fleet = fleets, ship = NULL, yr = NULL)) %>%
     aperm(c(2,3,1))
+  profits_spp <- matrix(-fixed_costs, nrow = npops, ncol = nyrs, dimnames = list(spp = spp.names, yr = NULL))
   
   revenue <- array(0, dim = c(nships, nyrs, nfleets), dimnames = list(ship = NULL, yr = NULL, fleet = fleets))
+  revenue_spp <- matrix(0, nrow = npops, ncol = nyrs, dimnames = list(spp = spp.names, yr = NULL))
   
   Catch <- array(0, dim = c(npops, nyrs, wks_per_yr, nfleets), 
                  dimnames = list(spp = spp.names, yr = NULL, wk = NULL, fleet = fleets))
@@ -240,7 +242,8 @@ set_up_objects <- function(sim_pars) {
                         dimnames = list(spp = spp.names, fleet = fleets, wk = NULL, yr = NULL))
   out.list <- list(profits = profits, Catch = Catch, N = N, wt_at_rec = wt_at_rec, rec_devs = rec_devs,
                    salmon_tac = salmon_tac, cost_by_ship = cost_by_ship, effort = effort,
-                   revenue = revenue, groundfish_bio = groundfish_bio, groundfish_rec = groundfish_rec)
+                   revenue = revenue, revenue_spp = revenue_spp, groundfish_bio = groundfish_bio, 
+                   groundfish_rec = groundfish_rec)
   return(out.list)
 }
 
@@ -297,6 +300,7 @@ run_sim <- function(sim_pars, seed = NA, long_output = TRUE) {
         exp_rev[,,'crab'] <- N['crab',yr,wk] * wt_at_rec['crab',yr] * temp_catchability['crab'] *
           price_mat[wk+1,'crab'] * pop_seasons['crab',wk]
         exp_profit[,,'crab'] <- exp_rev[,,'crab'] - cost_by_ship[,,'crab']
+        revenue_spp[,yr] <- revenue_spp[,yr] + apply(Catch[,yr,wk,], 1, sum) * price_mat[wk+1,]
         
         for(fleet in 1:nfleets) {
           this_week_profit[,fleet] <- exp_profit[cbind(1:nships, fleet, best_spp[,fleet])]
@@ -344,9 +348,9 @@ run_sim <- function(sim_pars, seed = NA, long_output = TRUE) {
   }
   if(long_output) {
     out.list <- list(Catch = Catch, profits = profits, effort = effort, rec_devs = rec_devs, 
-                   revenue = revenue, groundfish_bio = groundfish_bio)
+                   revenue = revenue, revenue_spp = revenue_spp, groundfish_bio = groundfish_bio)
   } else {
-    out.list <- list(profits = profits, revenue = revenue)
+    out.list <- list(profits = profits, revenue = revenue, revenue_spp = revenue_spp)
   }
   return(out.list)
 }
