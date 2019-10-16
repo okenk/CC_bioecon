@@ -1,9 +1,8 @@
 library(reshape2)
 library(tidyverse)
-library(purrr)
 source('Code/half_baked_plot_function.R')
 
-nsims <- 100
+nsims <- 1000
 
 # Recruitment synchrony ---------------------------------------------------
 res.list <- list()
@@ -12,12 +11,12 @@ sim_pars$ind_pops <- 0#which(spp.names == 'groundfish')
 for(ii in 1:3) {
   set.seed(53209823)
   sim_pars$recruit_corr <- corr.par[ii]
-  res.list[[as.character(corr.par[ii])]] <- map(1:nsims, function(.x) run_sim(sim_pars, long_output = FALSE))
+  res.list[[as.character(corr.par[ii])]] <- map(1:nsims, function(.x) run_sim(sim_pars, long_output = TRUE))
 }
 synchrony <- res.list
 save(synchrony, file = 'Data/synchrony_10-8_1k.RData')
 rm(synchrony)
-gc()
+# gc()
 # # What proportion of crab are caught?
 # Catch.df %>%
 #   group_by(rec_corr, sim_number, spp, yr) %>%
@@ -45,7 +44,7 @@ for(ii in 1:3) {
   sim_pars$ships_per_fleet <- fleet_distn[[ii]]
   names(sim_pars$ships_per_fleet) <- fleets
   sim_pars$nships <- max(fleet_distn[[ii]])
-  res.list[[names(fleet_distn)[ii]]] <- map(1:nsims, function(.x) run_sim(sim_pars, long_output = FALSE))
+  res.list[[names(fleet_distn)[ii]]] <- map(1:nsims, function(.x) run_sim(sim_pars, long_output = TRUE))
 }
 access <- res.list
 save(access, file = 'Data/access_10-8_1k.RData')
@@ -108,6 +107,19 @@ rm(synchrony)
 gc()
 # make_half_baked_plots(timing, '10_19', 'timing', 'timing', 'normal')
 
+one.sim <- map_dfr(access, function(sim.par) 
+  apply(sim.par[[1]]$revenue, 1:3, sum) %>%
+    melt(value.name = 'revenue') %>%
+    as_tibble(),
+  .id = 'access') %>%
+  group_by(access, spp, yr) %>%
+  mutate(cum_catch = cumsum(Catch))
+
+one.sim %>%
+  filter(yr == 20) %>%
+  ggplot() +
+  geom_line(aes(x = wk, y = Catch, col = access)) + 
+  facet_wrap(~spp, scales = 'free_y')
 
 #### To do:
 ## 2. Make salmon vessels more likely to start out season fishing? (Too many forgo fishing for the year.)

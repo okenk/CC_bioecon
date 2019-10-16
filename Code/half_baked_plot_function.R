@@ -1,68 +1,4 @@
 make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.value) {
-  # Catch.df <- map_dfr(res.list, function(corr.val)
-  #   map_dfr(corr.val, function(sim.res) {
-  #     melt(sim.res$Catch, value.name = 'catch') %>%
-  #       as_tibble() %>%
-  #       left_join(melt(sim.res$rec_devs, value.name = 'rec_devs'))
-  #   }, 
-  #   .id = 'sim_number'),
-  #   .id = sim.id)
-  # 
-  # effort.df <- map_dfr(res.list, function(corr.val)
-  #   map_dfr(corr.val, function(sim.res) {
-  #     melt(sim.res$effort, value.name = 'n_ships') %>%
-  #       as_tibble() %>%
-  #       left_join(melt(sim.res$rec_devs, value.name = 'rec_devs'))
-  #   }, 
-  #   .id = 'sim_number'),
-  #   .id = sim.id)
-  # 
-  # cpue <- left_join(Catch.df, effort.df)
-  # yrs <- filter(cpue, sim_number=='1', get(sim.id) == base.value) %>%
-  #   group_by(yr) %>%
-  #   summarize(rec = first(rec_devs)) %>%
-  #   arrange(rec) %>%
-  #   slice(c(3, 15, 27, 39, 50)) %>%
-  #   with(yr)
-  # 
-  # plt <- filter(cpue, n_ships > 0, sim_number == '1') %>%
-  #   ggplot(aes(x=wk, group=yr)) +
-  #   facet_grid(get(sim.id) ~ spp + fleet, scales = 'free_y') +
-  #   theme_bw(base_size = 14) +
-  #   theme(panel.grid.major = element_blank(), 
-  #         panel.grid.minor = element_blank(),
-  #         strip.background = element_rect(fill="white")) +
-  #   xlab('Week of year') +
-  #   guides(col = guide_legend(title = 'Year')) +
-  #   NULL
-  # 
-  # to.save <- plt +
-  #   geom_line(aes(y=catch), alpha = .25, lwd=.1) +
-  #   geom_line(data = filter(cpue, sim_number == '1', n_ships > 0, 
-  #                           yr %in% yrs),
-  #             aes(x = wk, y = catch, group = yr, col = factor(yr))) +
-  #   ylab('Catch (weight)') 
-  # ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_catch.png'), plot = to.save, height = 4, width = 9,
-  #        units = 'in', dpi = 500)
-  # 
-  # to.save <- plt +
-  #   geom_line(aes(y=n_ships), alpha = .25, lwd=.1) +
-  #   geom_line(data = filter(cpue, sim_number == '1', n_ships > 0,
-  #                           yr %in% yrs),
-  #             aes(x = wk, y = n_ships, group = yr, col = factor(yr))) +
-  #   ylab('Effort (number of ships)') 
-  # ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_effort.png'), plot = to.save, height = 4, width = 9,
-  #        units = 'in', dpi = 500)
-  # 
-  # to.save <- plt +
-  #   geom_line(aes(y=catch/n_ships), alpha = .25, lwd=.1) +
-  #   geom_line(data = filter(cpue, sim_number == '1', n_ships > 0,
-  #                           yr %in% yrs),
-  #             aes(x = wk, y = catch/n_ships, group = yr, col = factor(yr))) +
-  #   ylab('CPUE') 
-  # ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_cpue.png'), plot = to.save, height = 4, width = 9,
-  #        units = 'in', dpi = 500)
-  # 
   profit.df <- map_dfr(res.list, function(sim.par)
     map_dfr(sim.par, function(sim.res) {
       melt(sim.res$profits, value.name = 'profit') %>%
@@ -78,7 +14,7 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
     },
     .id = 'sim_number'),
     .id = sim.id)
-
+  
   income <- left_join(profit.df, revenue.df)
   income.summary <- group_by(income, get(sim.id), sim_number, fleet, ship) %>%
     summarize(profit.sd = sd(profit),
@@ -91,6 +27,7 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
   # (problem is that revenue and profit should be ragged arrays, but have dimensions based on max # of ships
   # in a fleet)
   
+  # Individual Revenue CV
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
@@ -106,6 +43,7 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
+  # Individual Revenue SD
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = revenue.sd, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
@@ -120,7 +58,8 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev_sd.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
-    to.save <- ggplot(income.summary) +
+  # Individual Revenue Mean
+  to.save <- ggplot(income.summary) +
     geom_density(aes(x = revenue.mn, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, nrow = 2, scales = 'free_x') +
@@ -134,6 +73,7 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_avg_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
+  # Individual Profit SD
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = profit.sd, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
@@ -148,6 +88,7 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_profit.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
   
+  # Individual Profit Mean
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = profit.mn, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
@@ -162,6 +103,7 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_avg_prof.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
 
+  # Individual revenue CV aggregated over all fleets
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
@@ -176,4 +118,72 @@ make_half_baked_plots <- function(res.list, folder, sim.file.name, sim.id, base.
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev_agg.png'), plot = to.save, height = 5, width = 7,
          units = 'in', dpi = 500)
   
+  # Gini index of mean revenue
+  gini.index <- group_by(income, get(sim.id), sim_number, fleet, ship) %>%
+    summarize(profit.sd = sd(profit),
+              profit.mn = mean(profit),
+              revenue.sd = sd(revenue),
+              revenue.mn = mean(revenue)) %>%
+    mutate(revenue.cv = revenue.sd / revenue.mn) %>%
+    filter(revenue.mn > 0) %>%  # filters out ships with 0 revenue over a simulation, assume these did not have permits
+    rename(!!sim.id := `get(sim.id)`) %>%
+    ungroup() %>%
+    group_by(get(sim.id), sim_number) %>%
+    summarize(gini = DescTools::Gini(revenue.mn)) %>%
+    rename(!!sim.id := `get(sim.id)`)
+  
+  to.save <- ggplot(gini.index) +
+    geom_density(aes(x = gini, fill = get(sim.id)), alpha = .5) +
+    guides(fill = guide_legend(title = sim.id)) 
+  ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_gini.png'), plot = to.save, height = 5, width = 7,
+         units = 'in', dpi = 500)
+  
+  # Statistics for total revenue summed over all individuals
+  total.rev <- group_by(income, get(sim.id), sim_number, yr) %>%
+  summarize(revenue.total = sum(revenue),
+            profit.total = sum(profit)) %>%
+    summarize(profit.sd = sd(profit.total),
+              profit.mn = mean(profit.total),
+              revenue.sd = sd(revenue.total),
+              revenue.mn = mean(revenue.total)) %>%
+    mutate(revenue.cv = revenue.sd / revenue.mn) %>%
+    rename(!!sim.id := `get(sim.id)`) %>%
+    gather(key = 'metric', value = 'value', -(1:2))
+  
+  to.save <- ggplot(total.rev) +
+    geom_density(aes(x = value, fill = get(sim.id)), alpha = 0.25) +
+    facet_wrap(~metric, scales = 'free') +
+    guides(fill = guide_legend(title = sim.id)) 
+  ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_whole_fleet.png'), plot = to.save, height = 4, width = 9,
+         units = 'in', dpi = 500)
+  
+  # Revenue by species
+  revenue.df.spp <- map_dfr(res.list, function(sim.par)
+    map_dfr(sim.par, function(sim.res) {
+      melt(sim.res$revenue_spp, value.name = 'revenue') %>%
+        as_tibble()
+    },
+    .id = 'sim_number'),
+    .id = sim.id) %>%
+    group_by(get(sim.id), spp, sim_number) %>%
+    summarize(revenue.sd = sd(revenue),
+              revenue.mn = mean(revenue)) %>%
+    mutate(revenue.cv = revenue.sd / revenue.mn) %>%
+    rename(!!sim.id := `get(sim.id)`)
+  
+  p.mn <- ggplot(revenue.df.spp) +
+    geom_density(aes(x = revenue.mn, fill = get(sim.id)), alpha = 0.25) +
+    facet_wrap(~spp, nrow = 1, scales = "free") +
+    guides(fill = guide_legend(title = sim.id)) 
+  p.sd <- ggplot(revenue.df.spp) +
+    geom_density(aes(x = revenue.sd, fill = get(sim.id)), alpha = 0.25) +
+    facet_wrap(~spp, nrow = 1, scales = "free") +
+    guides(fill = guide_legend(title = sim.id)) 
+  p.cv <- ggplot(revenue.df.spp) +
+    geom_density(aes(x = revenue.cv, fill = get(sim.id)), alpha = 0.25) +
+    facet_wrap(~spp, nrow = 1, scales = "free") +
+    guides(fill = guide_legend(title = sim.id)) 
+  to.save <- gridExtra::arrangeGrob(p.mn, p.sd, p.cv, nrow = 3)
+  ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_by_spp.png'), plot = to.save, height = 5, width = 7,
+         units = 'in', dpi = 500)
 }
