@@ -224,6 +224,8 @@ set_up_objects <- function(sim_pars) {
   salmon_tac <- N['salmon',,1] * salmon_tac_rule
 
   # simulate cost per trip for each ship in each fleet
+  # important that this is the last set of random numbers generated so "state of nature" stays constant
+  # across access scenarios.
   cost_by_ship <- array(0, dim = c(nships, nfleets, npops), 
                         dimnames = list(ships = NULL, fleet = fleets, spp = spp.names))
   sigma_mat <- matrix(cost_corr*cost_cv^2, nrow = npops, ncol = npops)
