@@ -8,6 +8,9 @@ nsims <- 1000
 res.list <- list()
 corr.par <- c(0.5, 0, -0.5)
 sim_pars$ind_pops <- 0#which(spp.names == 'groundfish')
+sim_pars$ships_per_fleet <- rep(67,6)
+names(sim_pars$ships_per_fleet) <- fleets
+sim_pars$nships <- 67
 for(ii in 1:3) {
   set.seed(53209823)
   sim_pars$recruit_corr <- corr.par[ii]
@@ -90,22 +93,33 @@ save(synchrony.access, file = 'Data/sync_access_10-8_1k.RData')
 # }
 # timing <- res.list
 
-#save(synchrony, access, access.synchrony, file = 'Code/long_sim_10-1.RData')
+save(synchrony, access, access.synchrony, file = 'Code/long_sim_10-1.RData')
 load('Data/sync_access_10-8_1k.RData')
-make_half_baked_plots(synchrony.access, '10_19', 'sync_access_3_spp', 'sync_access', 'easy access 0.5')
-rm(synchrony.access)
+sync_access_tibbles <- summarize_sim_results(synchrony.access, 'sync_access')
+save(sync_access_tibbles, file = 'Data/sync_access_df_10-8_1k.RData')
+rm(synchrony.access, sync_access_tibbles)
 gc()
+
+load('Data/sync_access_df_10-8_1k.RData')
+make_half_baked_plots(sync_access_tibbles, 'PICES', 'sync_access_3_spp', 'sync_access')
 
 load('Data/access_10-8_1k.RData')
-make_half_baked_plots(access, '10_19', 'access', 'access', 'even access')
-rm(access)
+access_tibbles <- summarize_sim_results(access, 'access')
+save(access_tibbles, file = 'Data/access_df_10-8_1k.RData')
+rm(access, access_tibbles)
 gc()
 
+load('Data/access_df_10-8_1k.RData')
+make_half_baked_plots(access_tibbles, 'PICES', 'access_3_spp', 'access')
+
 load('Data/synchrony_10-8_1k.RData')
-make_half_baked_plots(synchrony, '10_19', 'sync_3_spp', 'rec_corr', 0)
-rm(synchrony)
+sync_tibbles <- summarize_sim_results(synchrony, 'synchrony')
+save(sync_tibbles, file = 'Data/sync_df_10-8_1k.RData')
+rm(synchrony, sync_tibbles)
 gc()
-# make_half_baked_plots(timing, '10_19', 'timing', 'timing', 'normal')
+
+load('Data/sync_df_10-8_1k.RData')
+make_half_baked_plots(sync_tibbles, 'PICES', 'sync_3_spp', 'synchrony')
 
 one.sim <- map_dfr(access, function(sim.par) 
   apply(sim.par[[1]]$revenue, 1:3, sum) %>%
