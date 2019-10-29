@@ -1,6 +1,10 @@
 make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
   list2env(tibble.list, sys.frame(sys.nframe()))
   
+  medians <- group_by(income.summary, get(sim.id), fleet) %>%
+    summarize(median.rev.cv = median(revenue.cv)) %>%
+    rename(!!sim.id := `get(sim.id)`)
+  
   # Individual Revenue CV
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)),
@@ -13,6 +17,9 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     xlab('Revenue CV') +
     xlim(0,2) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    geom_vline(aes(xintercept = median.rev.cv, col = get(sim.id)), data = medians) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
@@ -28,6 +35,8 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
           strip.background = element_rect(fill="white")) +
     xlab('Revenue SD') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev_sd.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
@@ -44,6 +53,8 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     xlab('Mean revenue') +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_avg_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
@@ -60,6 +71,8 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     xlab('Profit SD') +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_profit.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
@@ -76,6 +89,8 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     xlab('Mean profit') +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_avg_prof.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
@@ -91,6 +106,8 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     xlab('Revenue CV') +
     xlim(0,2) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev_agg.png'), plot = to.save, height = 5, width = 7,
          units = 'in', dpi = 500)
@@ -106,6 +123,8 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     xlab('Gini Index') +
     xlim(0,1) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_gini.png'), plot = to.save, height = 5, width = 7,
          units = 'in', dpi = 500)
@@ -119,6 +138,8 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
           strip.background = element_rect(fill="white")) +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_whole_fleet.png'), plot = to.save, height = 4, width = 9,

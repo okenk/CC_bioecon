@@ -8,8 +8,10 @@ make_pices_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
           strip.background = element_rect(fill="white")) +
-    xlab('Mean revenue')
-  NULL 
+    xlab('Mean revenue') +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    NULL 
   
   p.cv <-  ggplot(total.summary) +
     geom_density(aes(x = `Revenue CV`, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
@@ -18,8 +20,10 @@ make_pices_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
           strip.background = element_rect(fill="white")) +
-    xlab('Revenue CV')
-  NULL 
+    xlab('Revenue CV') +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    NULL 
   
   to.save <- gridExtra::arrangeGrob(p.mn, p.cv, nrow = 1)
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_mn_cv.png'), plot = to.save, height = 4, width = 9,
@@ -34,6 +38,8 @@ make_pices_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
           panel.grid.minor = element_blank(),
           strip.background = element_rect(fill="white")) +
     xlab('Mean revenue') +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev_spp_mn.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
@@ -47,6 +53,8 @@ make_pices_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
           panel.grid.minor = element_blank(),
           strip.background = element_rect(fill="white")) + 
     xlab('Revenue CV') +
+    scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
+    scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev_spp_cv.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)

@@ -1,3 +1,6 @@
+library(reshape2)
+library(beyonce)
+set.seed(83209)
 one.sim <- run_sim(sim_pars)
 
 catch.df <- apply(one.sim$Catch, 1:3, sum) %>%
@@ -25,6 +28,7 @@ to.save <- catch.df %>%
   xlab('Week of year') +
   ylab('Catch (weight)') +
   guides(col = guide_legend(title = 'Year')) +
+  scale_color_manual(values = beyonce_palette(127, n = 6)[2:6]) +
   NULL
 ggsave(filename = 'Figures/catch_ex.png', plot = to.save, height = 4, width = 9, units = 'in', dpi = 500)
 
@@ -45,6 +49,7 @@ to.save <- effort.df %>%
   xlab('Week of year') +
   ylab('Effort (number of vessels)') +
   guides(col = guide_legend(title = 'Year')) +
+  scale_color_manual(values = beyonce_palette(127, n = 6)[2:6]) +
   NULL
 ggsave(filename = 'Figures/effort_ex.png', plot = to.save, height = 4, width = 9, units = 'in', dpi = 500)
 
