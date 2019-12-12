@@ -119,10 +119,6 @@ calc_var_cost <- function(log_avg_cost_per_trip, cost_cv, recruits, wt_at_rec, f
   # print(paste('avg profit is', profit))
   return(profit)
 }
-calc_var_cost_groundfish_new <- function(log_avg_cost_per_trip, cost_cv, N1, bio_init, fishing_season, in_season_dpltn, 
-                                         fleet_size, fixed_costs, catchability, price, tac = NA, groundfish) {
-  
-}
 
 
 calc_var_cost_groundfish <- function(log_avg_cost_per_trip, cost_cv, N1, bio_init, fishing_season, in_season_dpltn, 
@@ -223,6 +219,8 @@ set_up_objects <- function(sim_pars) {
   dimnames(wt_at_rec) <- list(spp = spp.names, yr = NULL)
   salmon_tac <- N['salmon',,1] * salmon_tac_rule
 
+  closures <- sample(length(season_prob), size = nyrs, replace = TRUE, prob = season_prob)
+  
   # simulate cost per trip for each ship in each fleet
   # important that this is the last set of random numbers generated so "state of nature" stays constant
   # across access scenarios.
@@ -245,7 +243,7 @@ set_up_objects <- function(sim_pars) {
   out.list <- list(profits = profits, Catch = Catch, N = N, wt_at_rec = wt_at_rec, rec_devs = rec_devs,
                    salmon_tac = salmon_tac, cost_by_ship = cost_by_ship, effort = effort,
                    revenue = revenue, revenue_spp = revenue_spp, groundfish_bio = groundfish_bio, 
-                   groundfish_rec = groundfish_rec)
+                   groundfish_rec = groundfish_rec, closures = closures)
   return(out.list)
 }
 
@@ -268,14 +266,14 @@ run_sim <- function(sim_pars, seed = NA, long_output = TRUE) {
     temp_catchability <- catchability
 
     for(wk in 1:wks_per_yr){
-      if(sum(pop_seasons[,wk]) > 0) {
-        exp_rev <- array(N[,yr,wk] * wt_at_rec[,yr] * temp_catchability * price_mat[wk,] * pop_seasons[,wk], 
+      if(sum(pop_seasons[[closures[yr]]][,wk]) > 0) {
+        exp_rev <- array(N[,yr,wk] * wt_at_rec[,yr] * temp_catchability * price_mat[wk,] * pop_seasons[[closures[yr]]][,wk], 
                          dim=c(npops, nships, nfleets), 
                          dimnames = list(spp = spp.names, ships = NULL, fleet = fleets)) %>% 
           aperm(perm = c(2,3,1))
         
         exp_rev[,,'groundfish'] <- groundfish_bio[yr,wk] * temp_catchability['groundfish'] * 
-          price_mat[wk,'groundfish'] * pop_seasons['groundfish',wk]
+          price_mat[wk, 'groundfish'] * pop_seasons[[closures[yr]]]['groundfish', wk]
         # If out of legal season, expected revenue = 0. 
         # exp_rev does *not* care whether a fleet has a permit though! (That's in exp_profit)
         
@@ -300,7 +298,7 @@ run_sim <- function(sim_pars, seed = NA, long_output = TRUE) {
                                            sum(Catch['crab',yr,wk,grep('crab', fleets)]) * wt_at_rec['crab',yr])
 
         exp_rev[,,'crab'] <- N['crab',yr,wk] * wt_at_rec['crab',yr] * temp_catchability['crab'] *
-          price_mat[wk+1,'crab'] * pop_seasons['crab',wk]
+          price_mat[wk+1,'crab'] * pop_seasons[[closures[yr]]]['crab', wk]
         exp_profit[,,'crab'] <- exp_rev[,,'crab'] - cost_by_ship[,,'crab']
         revenue_spp[,yr] <- revenue_spp[,yr] + apply(Catch[,yr,wk,], 1, sum) * price_mat[wk+1,]
         

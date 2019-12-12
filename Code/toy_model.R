@@ -27,22 +27,23 @@ fleet_permits <- cbind(c(1,0,0), # crab fleet
 dimnames(fleet_permits) <- list(spp = spp.names, fleet = fleets)
 names(ships_per_fleet) <- fleets
 
-pop_seasons <- matrix(1, nrow = npops, ncol = wks_per_yr, dimnames = list(spp = spp.names, wk = NULL))
+# Is a list so that other season options can be included within a single simulation. If season is constant, list is length 1.
+pop_seasons <- list(matrix(1, nrow = npops, ncol = wks_per_yr, dimnames = list(spp = spp.names, wk = NULL)))
 
 # crab (spp. 1) season = Dec. 1 - Aug. 14
 # Assume yr starts Dec. 1
-pop_seasons['crab', 37] <- 1
-# pop_seasons['crab', 37] <- 0.7
-pop_seasons['crab', 38:wks_per_yr] <- 0
-# pop_seasons['crab', 1:4] <- 0 # HAB closure
+pop_seasons[[1]]['crab', 37] <- 1
+# pop_seasons[[1]]['crab', 37] <- 0.7
+pop_seasons[[1]]['crab', 38:wks_per_yr] <- 0
+# pop_seasons[[1]]['crab', 1:4] <- 0 # HAB closure
 
 # salmon (spp. 2) season = May 1 - Oct. 31 (actually more complicated)
-pop_seasons['salmon', 1:21] <- 0
-# pop_seasons['salmon', 22] <- 0.3
-pop_seasons['salmon', 22] <- 0
-pop_seasons['salmon', 47] <- 1
-# pop_seasons['salmon', 47] <- 0.7
-pop_seasons['salmon', 48:wks_per_yr] <- 0;
+pop_seasons[[1]]['salmon', 1:21] <- 0
+# pop_seasons[[1]]['salmon', 22] <- 0.3
+pop_seasons[[1]]['salmon', 22] <- 0
+pop_seasons[[1]]['salmon', 47] <- 1
+# pop_seasons[[1]]['salmon', 47] <- 0.7
+pop_seasons[[1]]['salmon', 48:wks_per_yr] <- 0;
 
 catchability <- c(.0005, .00005, 0);
 # proportion of stock that will be caught by one fleet/ship during one week
@@ -77,7 +78,7 @@ sim_pars <- list(spp.names = spp.names, fleets = fleets, wks_per_yr = wks_per_yr
                  avg_wt = avg_wt, weight_cv = weight_cv, recruit_cv = recruit_cv, recruit_ar = recruit_ar, 
                  recruit_corr = recruit_corr, ind_pops = 0, fixed_costs = fixed_costs, cost_per_trip = cost_per_trip, 
                  cost_cv = cost_cv, cost_corr = cost_corr, salmon_tac_rule = salmon_tac_rule,
-                 crab_price_cutoff = crab_price_cutoff, crab_price_pars = crab_price_pars)
+                 crab_price_cutoff = crab_price_cutoff, crab_price_pars = crab_price_pars, season_prob = 1)
 
 # Crab demand function. Currently hard-coded into simulation function. This is not used. -------
 
@@ -107,24 +108,24 @@ alpha_price <- 1 + beta_price * log(catchability['crab'] * avg_rec['crab'] * avg
 
 xx <- uniroot(calc_var_cost, interval = c(-20,0),
               cost_cv = cost_cv, recruits = avg_rec['crab'], wt_at_rec = 1, price = c(2,10), #price['crab'], c(alpha_price, beta_price),
-              fishing_season = pop_seasons['crab',], in_season_dpltn = TRUE, fleet_size = 200, 
+              fishing_season = pop_seasons[[1]]['crab',], in_season_dpltn = TRUE, fleet_size = 200, 
               fixed_costs = fixed_costs['crab'], catchability = catchability['crab'], tac = NA)
 sim_pars$cost_per_trip['crab'] <- exp(xx$root)
 
 xx <- uniroot(calc_var_cost, interval = c(-20, 0),
               cost_cv = cost_cv, recruits = avg_rec['salmon'], wt_at_rec = 1, price = price['salmon'],
-              fishing_season = pop_seasons['salmon',], in_season_dpltn = TRUE, fleet_size = 200, 
+              fishing_season = pop_seasons[[1]]['salmon',], in_season_dpltn = TRUE, fleet_size = 200, 
               fixed_costs = fixed_costs['salmon'], catchability = catchability['salmon'], tac = salmon_tac_rule)
 sim_pars$cost_per_trip['salmon'] <- exp(xx$root)
 
 # calc_var_cost(log_avg_cost_per_trip = log(cost_per_trip['crab']),
 #               cost_cv = cost_cv, recruits = 1, wt_at_rec = 1, price = 1,#c(alpha_price, beta_price),
-#               fishing_season = pop_seasons['crab',], in_season_dpltn = TRUE, fleet_size = 200,
+#               fishing_season = pop_seasons[[1]]['crab',], in_season_dpltn = TRUE, fleet_size = 200,
 #               fixed_costs = fixed_costs['crab'], catchability = catchability['crab'], tac = NA)
 
 # calc_var_cost(log_avg_cost_per_trip = log(cost_per_trip['salmon']),
 #               cost_cv = cost_cv, recruits = 1, wt_at_rec = 1, price = 1,#c(alpha_price, beta_price),
-#               fishing_season = pop_seasons['salmon',], in_season_dpltn = TRUE, fleet_size = 200,
+#               fishing_season = pop_seasons[[1]]['salmon',], in_season_dpltn = TRUE, fleet_size = 200,
 #               fixed_costs = fixed_costs['salmon'], catchability = catchability['salmon'], tac = salmon_tac_rule)
 
 # Run model! --------------------------------------------------------------
@@ -221,7 +222,7 @@ sim_pars$fixed_costs['groundfish']/revenue
 
 ## Step 4: Calculate variable costs! (Try to force annual harvest rate to b40.harvest by letting catchability vary?)
 # xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv,
-#                          fishing_season = pop_seasons['groundfish',], bio_init = b40,
+#                          fishing_season = pop_seasons[[1]]['groundfish',], bio_init = b40,
 #                          N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
 #                          fixed_costs = .00002, catchability = 5*10^(-6), price = 1, tac = NA, groundfish = groundfish, tol = 10^(-6))
 # 
@@ -229,17 +230,17 @@ sim_pars$fixed_costs['groundfish']/revenue
 # # The value of the root as a function of catchability also seems oddly discountinous. You get reasonable roots at q = 5e-6 and 7e-6 but basically no fishing at 6e-6.
 # 
 # calc_var_cost_groundfish(log_avg_cost_per_trip = xx$root, cost_cv = cost_cv,
-# fishing_season = pop_seasons['groundfish',], bio_init = b40,
+# fishing_season = pop_seasons[[1]]['groundfish',], bio_init = b40,
 # N1 = N40, fleet_size = 200, in_season_dpltn = TRUE,
 # fixed_costs = .00002, catchability = 5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
 # 
 # b40# calc_var_cost_groundfish(log_avg_cost_per_trip = -11.9, cost_cv = cost_cv, 
-#               fishing_season = pop_seasons['groundfish',], bio_init = 1, 
+#               fishing_season = pop_seasons[[1]]['groundfish',], bio_init = 1, 
 #               N1 = N.seq[find_closest(bio.seq, 1)], fleet_size = 200, in_season_dpltn = TRUE, 
 #               fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)
 # 
 # xx <- uniroot(calc_var_cost_groundfish, interval = c(-20,0), cost_cv = cost_cv, 
-#               fishing_season = pop_seasons['groundfish',], 
+#               fishing_season = pop_seasons[[1]]['groundfish',], 
 #               bio_init = bio.seq[find_closest(yield.seq[1:295], 0.05718231)],
 #               N1 = N.seq[find_closest(yield.seq[1:295], 0.05718231)], fleet_size = 200, in_season_dpltn = TRUE, 
 #               fixed_costs = .00002, catchability = 6.5*10^(-6), price = 1, tac = NA, groundfish = groundfish)

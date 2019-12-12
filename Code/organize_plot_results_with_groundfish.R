@@ -1,6 +1,7 @@
 library(reshape2)
 library(tidyverse)
 source('Code/half_baked_plot_function.R')
+source('Code/summarize_sim_results.R')
 
 nsims <- 1000
 
@@ -19,7 +20,7 @@ for(ii in 1:3) {
 synchrony <- res.list
 save(synchrony, file = 'Data/synchrony_10-8_1k.RData')
 rm(synchrony)
-# gc()
+gc()
 # # What proportion of crab are caught?
 # Catch.df %>%
 #   group_by(rec_corr, sim_number, spp, yr) %>%
@@ -71,29 +72,48 @@ for(ii in c(1,3)) {
 
 synchrony.access <- res.list
 save(synchrony.access, file = 'Data/sync_access_10-8_1k.RData')
+rm(access)
+gc()
 
 
-# crab delay --------------------------------------------------------------
+# Crab delay --------------------------------------------------------------
 
-# this works if it runs after setting up the parameters. not if it runs after previous sims.
-# sim_pars$ships_per_fleet <- rep(1, nfleets) * 67
-# names(sim_pars$ships_per_fleet) <- fleets
-# sim_pars$nships <-  max(sim_pars$ships_per_fleet)
-# 
-# res.list <- list()
-# season_list <- map(1:3, ~pop_seasons)
-# names(season_list) <- c('normal', 'late opening', 'early closure')
-# season_list$`late opening`['crab', 1:10] <- 0
-# season_list$`early closure`['crab', 28:37] <- 0
-# 
-# for(ii in 1:3) {
-#   set.seed(53209823)
-#   sim_pars$pop_seasons <- season_list[[ii]]
-#   res.list[[names(season_list)[ii]]] <- map(1:nsims, function(.x) run_sim(sim_pars))
-# }
-# timing <- res.list
+sim_pars$recruit_corr <- 0
+sim_pars$ind_pops <- 0
+sim_pars$ships_per_fleet <- rep(67,6)
+names(sim_pars$ships_per_fleet) <- fleets
+sim_pars$nships <- 67
 
-save(synchrony, access, access.synchrony, file = 'Code/long_sim_10-1.RData')
+res.list <- list()
+pop_seasons_hab <- map(1:2, ~pop_seasons[[1]])
+names(pop_seasons_hab) <- c('normal', 'late opening')
+pop_seasons_hab$`late opening`['crab', 1:16] <- 0
+
+set.seed(53209823)
+sim_pars$pop_seasons <- pop_seasons_hab
+sim_pars$season_prob <- c(.75, .25)
+
+res.list$hab <- map(1:nsims, function(.x) run_sim(sim_pars))
+
+load('Data/access_10-8_1k.RData')
+res.list$normal <- access$`even access`
+
+timing <- res.list
+save(timing, file = 'Data/timing_10-8_1k.RData')
+rm(timing, access)
+gc()
+
+load('Data/timing_10-8_1k.RData')
+timing_tibbles <- summarize_sim_results(timing, 'season_type')
+save(timing_tibbles, file = 'Data/timing_df_10-8_1k.RData')
+rm(timing, timing_tibbles)
+gc()
+
+load('Data/timing_df_10-8_1k.RData')
+make_half_baked_plots(timing_tibbles, 'HABs', 'timing', 'season_type')
+
+# Summarizing and plotting ------------------------------------------------
+
 load('Data/sync_access_10-8_1k.RData')
 sync_access_tibbles <- summarize_sim_results(synchrony.access, 'sync_access')
 save(sync_access_tibbles, file = 'Data/sync_access_df_10-8_1k.RData')
@@ -120,6 +140,15 @@ gc()
 
 load('Data/sync_df_10-8_1k.RData')
 make_half_baked_plots(sync_tibbles, 'PICES', 'sync_3_spp', 'synchrony')
+
+load('Data/timing_10-8_1k.RData')
+timing_tibbles <- summarize_sim_results(timing, 'season_type')
+save(timing_tibbles, file = 'Data/timing_df_10-8_1k.RData')
+rm(timing, timing_tibbles)
+gc()
+
+load('Data/timing_df_10-8_1k.RData')
+make_half_baked_plots(timing_tibbles, 'HABs', 'timing', 'season_type')
 
 one.sim <- map_dfr(access, function(sim.par) 
   apply(sim.par[[1]]$revenue, 1:3, sum) %>%
