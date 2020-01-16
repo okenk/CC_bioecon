@@ -1,9 +1,12 @@
 library(reshape2)
 library(tidyverse)
+source('Code/functions.R')
 source('Code/half_baked_plot_function.R')
 source('Code/summarize_sim_results.R')
 
-nsims <- 1000
+source('Code/toy_model.R')
+
+nsims <- 10
 
 # Recruitment synchrony ---------------------------------------------------
 res.list <- list()
@@ -72,7 +75,7 @@ for(ii in c(1,3)) {
 
 synchrony.access <- res.list
 save(synchrony.access, file = 'Data/sync_access_10-8_1k.RData')
-rm(access)
+rm(synchrony.access)
 gc()
 
 
@@ -102,15 +105,6 @@ timing <- res.list
 save(timing, file = 'Data/timing_10-8_1k.RData')
 rm(timing, access)
 gc()
-
-load('Data/timing_10-8_1k.RData')
-timing_tibbles <- summarize_sim_results(timing, 'season_type')
-save(timing_tibbles, file = 'Data/timing_df_10-8_1k.RData')
-rm(timing, timing_tibbles)
-gc()
-
-load('Data/timing_df_10-8_1k.RData')
-make_half_baked_plots(timing_tibbles, 'HABs', 'timing', 'season_type')
 
 # Summarizing and plotting ------------------------------------------------
 
