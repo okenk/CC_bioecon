@@ -9,6 +9,8 @@ source('Code/toy_model.R')
 args <- commandArgs(TRUE)
 nsims <- args[1]
 
+print(nsims)
+
 sim_pars$recruit_corr <- 0
 sim_pars$ind_pops <- 0
 fleet_distn <- list()

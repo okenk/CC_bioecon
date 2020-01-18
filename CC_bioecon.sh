@@ -1,19 +1,14 @@
 #!/bin/bash
 
-scenarios = c("synchrony", "access", "interaction")
-
-for scenario in ${scenarios[@]}; do
-  job_file = "home/kloken/CC_bioecon/slurm_log/${scenario}.sh"
-  
-  echo "#!/bin/bash
 #SBATCH -D /home/kloken/CC_bioecon
-#SBATCH -o /home/kloken/CC_bioecon/slurm_log/${scenario}_output.txt
-#SBATCH -e /home/kloken/CC_bioecon/slurm_log/${scenario}_error.txt
-#SBATCH -J ${scenario}_sim
+#SBATCH -o /home/kloken/CC_bioecon/slurm_log/output_%a.txt
+#SBATCH -e /home/kloken/CC_bioecon/slurm_log/error%a.txt
+#SBATCH -J bioecon_sim
 #SBATCH -t 01:00:00
+#SBATCH --array=0-2
 
-Rscript ~/CC_bioecon/Code/for_cluster/${scenario}.R 10" > job_file
-  sbatch -p high --ntasks=8 job_file
-  
-done
+scenarios=( 'synchrony' 'access' 'interaction')
 
+scenario=${scenarios[$SLURM_ARRAY_TASK_ID]}
+
+Rscript ~/CC_bioecon/Code/for_cluster/${scenario}_sims.R 1000
