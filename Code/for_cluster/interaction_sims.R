@@ -1,5 +1,6 @@
 library(reshape2)
 library(tidyverse)
+library(future)
 source('Code/functions.R')
 source('Code/half_baked_plot_function.R')
 source('Code/summarize_sim_results.R')
@@ -25,7 +26,7 @@ for(ii in c(1,3)) {
     names(sim_pars$ships_per_fleet) <- fleets
     sim_pars$nships <- max(fleet_distn[[ii]])
     sim_pars$recruit_corr <- corr.par[jj]
-    res.list[[paste(names(fleet_distn)[ii], as.character(corr.par[jj]))]] <- map(1:nsims, function(.x) run_sim(sim_pars, long_output = TRUE))
+    res.list[[paste(names(fleet_distn)[ii], as.character(corr.par[jj]))]] <- future_map(1:nsims, function(.x) run_sim(sim_pars, long_output = TRUE))
   }
 }
 

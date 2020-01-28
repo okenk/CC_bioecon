@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -D /home/kloken/CC_bioecon
-#SBATCH -o /home/kloken/CC_bioecon/slurm_log/output_%a.txt
+#SBATCH -o /home/kloken/CC_bioecon/slurm_log/output%a.txt
 #SBATCH -e /home/kloken/CC_bioecon/slurm_log/error%a.txt
 #SBATCH -J bioecon_sim
 #SBATCH -t 01:00:00
