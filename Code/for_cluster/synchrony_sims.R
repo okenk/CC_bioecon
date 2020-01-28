@@ -1,12 +1,14 @@
 library(reshape2)
 library(tidyverse)
 library(furrr)
+library(getBestSpp)
 source('Code/functions.R')
 source('Code/half_baked_plot_function.R')
 source('Code/summarize_sim_results.R')
 
 source('Code/toy_model.R')
 
+plan(multiprocess)
 args <- commandArgs(TRUE)
 nsims <- args[1]
 

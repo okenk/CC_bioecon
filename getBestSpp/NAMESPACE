@@ -1,0 +1,3 @@
+useDynLib(getBestSpp, .registration=TRUE)
+exportPattern("^[[:alpha:]]+")
+importFrom(Rcpp, evalCpp)
