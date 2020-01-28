@@ -1,7 +1,7 @@
 library(tidyverse)
 library(mvtnorm)
 source('Code/functions.R')
-Rcpp::sourceCpp("Code/getBestSpp.cpp")
+# Rcpp::sourceCpp("Code/getBestSpp.cpp")
 
 # Model parameters --------------------------------------------------------
 

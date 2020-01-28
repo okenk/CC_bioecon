@@ -1,6 +1,6 @@
 summarize_sim_results <- function(res.list, sim.id) {
   profit.df <- map_dfr(res.list, function(sim.par)
-    map_dfr(sim.par, function(sim.res) {
+    future_map_dfr(sim.par, function(sim.res) {
       apply(sim.res$profits, c(1,3), function(profit.sim) 
         c(profit.mn = mean(profit.sim), profit.sd = sd(profit.sim))) %>%
         melt() %>% 
@@ -11,7 +11,7 @@ summarize_sim_results <- function(res.list, sim.id) {
     .id = sim.id)
   
   revenue.df <- map_dfr(res.list, function(sim.par)
-    map_dfr(sim.par, function(sim.res) {
+    future_map_dfr(sim.par, function(sim.res) {
       apply(sim.res$revenue, c(1,3), function(rev.sim) 
         c(revenue.mn = mean(rev.sim), revenue.sd = sd(rev.sim))) %>%
         melt() %>% 
@@ -30,7 +30,7 @@ summarize_sim_results <- function(res.list, sim.id) {
     rename(!!sim.id := `get(sim.id)`)
   
   total.profit <- map_dfr(res.list, function(sim.par)
-    map_dfr(sim.par, function(sim.res) {
+    future_map_dfr(sim.par, function(sim.res) {
       tot <- apply(sim.res$profits, 2, sum)
       tibble(`Mean profit` = mean(tot), `Profit SD` = sd(tot))
     },
@@ -39,7 +39,7 @@ summarize_sim_results <- function(res.list, sim.id) {
     gather(key = 'metric', value = 'value', -(1:2))
   
  total.revenue <- map_dfr(res.list, function(sim.par)
-    map_dfr(sim.par, function(sim.res) {
+    future_map_dfr(sim.par, function(sim.res) {
       tot <- apply(sim.res$revenue, 2, sum)
       tibble(`Mean revenue` = mean(tot), `Revenue SD` = sd(tot))
     },

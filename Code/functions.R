@@ -354,5 +354,3 @@ run_sim <- function(sim_pars, seed = NA, long_output = TRUE) {
   }
   return(out.list)
 }
-
-
