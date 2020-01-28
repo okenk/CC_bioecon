@@ -28,11 +28,12 @@ for(ii in c(1,3)) {
     names(sim_pars$ships_per_fleet) <- fleets
     sim_pars$nships <- max(fleet_distn[[ii]])
     sim_pars$recruit_corr <- corr.par[jj]
-    res.list[[paste(names(fleet_distn)[ii], as.character(corr.par[jj]))]] <- future_map(1:nsims, function(.x) run_sim(sim_pars, long_output = TRUE))
+    res.list[[paste(names(fleet_distn)[ii], as.character(corr.par[jj]))]] <- future_map(1:nsims, function(.x) run_sim(sim_pars, long_output = FALSE))
   }
 }
 
 synchrony.access <- res.list
+print('sims done')
 sync_access_tibbles <- summarize_sim_results(synchrony.access, 'sync_access')
 save(synchrony.access, file = 'Data/sync_access_10-8_1k.RData')
 save(sync_access_tibbles, file = 'Data/sync_access_df_10-8_1k.RData')

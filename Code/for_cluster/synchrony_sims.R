@@ -21,7 +21,7 @@ sim_pars$nships <- 67
 for(ii in 1:3) {
   set.seed(53209823)
   sim_pars$recruit_corr <- corr.par[ii]
-  res.list[[as.character(corr.par[ii])]] <- future_map(1:nsims, function(.x) run_sim(sim_pars, long_output = TRUE))
+  res.list[[as.character(corr.par[ii])]] <- future_map(1:nsims, function(.x) run_sim(sim_pars, long_output = FALSE))
 }
 print('sims done')
 synchrony <- res.list
