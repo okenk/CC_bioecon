@@ -1,6 +1,5 @@
 library(reshape2)
 library(tidyverse)
-library(furrr)
 library(getBestSpp)
 source('Code/functions.R')
 source('Code/half_baked_plot_function.R')
@@ -8,7 +7,6 @@ source('Code/summarize_sim_results.R')
 
 source('Code/toy_model.R')
 
-plan(multiprocess)
 args <- commandArgs(TRUE)
 nsims <- args[1]
 
@@ -25,10 +23,12 @@ for(ii in 1:3) {
   sim_pars$ships_per_fleet <- fleet_distn[[ii]]
   names(sim_pars$ships_per_fleet) <- fleets
   sim_pars$nships <- max(fleet_distn[[ii]])
-  res.list[[names(fleet_distn)[ii]]] <- future_map(1:nsims, function(.x) run_sim(sim_pars, long_output = TRUE))
+  res.list[[names(fleet_distn)[ii]]] <- replicate(nsims, run_sim(sim_pars, long_output = FALSE), 
+                                                  simplify = FALSE)
 }
 
 access <- res.list
+print('sims done')
 access_tibbles <- summarize_sim_results(access, 'access')
 save(access, file = 'Data/access_10-8_1k.RData')
 save(access_tibbles, file = 'Data/access_df_10-8_1k.RData')
