@@ -25,10 +25,11 @@ for(ii in 1:3) {
   sim_pars$ships_per_fleet <- fleet_distn[[ii]]
   names(sim_pars$ships_per_fleet) <- fleets
   sim_pars$nships <- max(fleet_distn[[ii]])
-  res.list[[names(fleet_distn)[ii]]] <- future_map(1:nsims, function(.x) run_sim(sim_pars, long_output = TRUE))
+  res.list[[names(fleet_distn)[ii]]] <- future_map(1:nsims, function(.x) run_sim(sim_pars, long_output = FALSE))
 }
 
 access <- res.list
+print('sims done')
 access_tibbles <- summarize_sim_results(access, 'access')
 save(access, file = 'Data/access_10-8_1k.RData')
 save(access_tibbles, file = 'Data/access_df_10-8_1k.RData')
