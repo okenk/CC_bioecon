@@ -1,4 +1,5 @@
 summarize_sim_results <- function(res.list, sim.id) {
+  print('starting profit df')
   profit.df <- map_dfr(res.list, function(sim.par)
     future_map_dfr(sim.par, function(sim.res) {
       apply(sim.res$profits, c(1,3), function(profit.sim) 
@@ -9,7 +10,7 @@ summarize_sim_results <- function(res.list, sim.id) {
     },
     .id = 'sim_number'),
     .id = sim.id)
-  
+  print('starting revenue df')
   revenue.df <- map_dfr(res.list, function(sim.par)
     future_map_dfr(sim.par, function(sim.res) {
       apply(sim.res$revenue, c(1,3), function(rev.sim) 
