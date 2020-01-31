@@ -37,21 +37,21 @@ summarize_sim_results <- function(res.list, sim.id) {
   total.profit <- map_dfr(res.list, function(sim.par)
     map_dfr(sim.par, function(sim.res) {
       tot <- apply(sim.res$profits, 2, sum)
-      data.frame(`Mean profit` = mean(tot), `Profit SD` = sd(tot))
+      data.frame(profit.mn = mean(tot), profit.sd = sd(tot))
     },
     .id = 'sim_number'),
     .id = sim.id) %>%
     gather(key = 'metric', value = 'value', -(1:2))
   
-  # Calculate avg, sd, cv revenue summed across vessels for each fleet in each sim
+  # Calculate avg, sd, cv revenue summed across vessels and fleets in each sim
   total.revenue <- map_dfr(res.list, function(sim.par)
     map_dfr(sim.par, function(sim.res) {
       tot <- apply(sim.res$revenue, 2, sum)
-      data.frame(`Mean revenue` = mean(tot), `Revenue SD` = sd(tot))
+      data.frame(revenue.mn = mean(tot), revenue.sd = sd(tot))
     },
     .id = 'sim_number'),
     .id = sim.id) %>%
-    mutate(`Revenue CV` = `Revenue SD` / `Mean revenue`) %>%
+    mutate(revenue.cv = revenue.sd / revenue.mn) %>%
     gather(key = 'metric', value = 'value', -(1:2))
   
   total.summary <- bind_rows(total.profit, total.revenue)
