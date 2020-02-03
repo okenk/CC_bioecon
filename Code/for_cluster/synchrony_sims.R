@@ -1,3 +1,11 @@
+library(reshape2)
+library(tidyverse)
+library(getBestSpp)
+source('Code/functions.R')
+source('Code/half_baked_plot_function.R')
+source('Code/summarize_sim_results.R')
+source('Code/toy_model.R')
+
 library(parallel)
 cl <- makeCluster(detectCores() - 1)
 clusterEvalQ(cl, {
@@ -7,7 +15,6 @@ clusterEvalQ(cl, {
   source('Code/functions.R')
   source('Code/half_baked_plot_function.R')
   source('Code/summarize_sim_results.R')
-  
   source('Code/toy_model.R')
 })
 args <- commandArgs(TRUE)
