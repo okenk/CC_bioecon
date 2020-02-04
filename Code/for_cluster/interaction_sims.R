@@ -28,6 +28,7 @@ for(ii in c(1,3)) {
     sim_pars$recruit_corr <- corr.par[jj]
     res.list[[paste(names(fleet_distn)[ii], as.character(corr.par[jj]))]] <- replicate(nsims, run_sim(
       sim_pars = sim_pars, long_output = FALSE), simplify = FALSE)
+    print(paste('scenario', ii, jj))
   }
 }
 

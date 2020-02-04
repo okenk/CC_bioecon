@@ -25,6 +25,7 @@ for(ii in 1:3) {
   sim_pars$nships <- max(fleet_distn[[ii]])
   res.list[[names(fleet_distn)[ii]]] <- replicate(nsims, run_sim(sim_pars, long_output = FALSE), 
                                                   simplify = FALSE)
+  print(paste('scenario', ii))
 }
 
 access <- res.list
