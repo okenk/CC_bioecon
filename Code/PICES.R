@@ -2,7 +2,7 @@ make_pices_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
   list2env(tibble.list, sys.frame(sys.nframe()))
   total.summary <- spread(tibble.list$total.summary, key = metric, value = value)  
   p.mn <- ggplot(total.summary) +
-    geom_density(aes(x = `Mean revenue`, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
+    geom_density(aes(x = revenue.mn, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
     guides(fill = guide_legend(title = sim.id), col = guide_legend(title = sim.id)) +
     theme_bw(base_size = 14) +
     theme(panel.grid.major = element_blank(),
@@ -14,7 +14,7 @@ make_pices_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     NULL 
   
   p.cv <-  ggplot(total.summary) +
-    geom_density(aes(x = `Revenue CV`, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
+    geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
     guides(fill = guide_legend(title = sim.id), col = guide_legend(title = sim.id)) +
     theme_bw(base_size = 14) +
     theme(panel.grid.major = element_blank(),
@@ -61,4 +61,4 @@ make_pices_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
 }
 
 make_pices_plots(sync_tibbles, 'PICES', 'sync_3_spp', 'synchrony')
-make_pices_plots(access_tibbles, 'PICES', 'access_3_spp', 'access')
+make_pices_plots(access_tibbles, '10k', 'access_3_spp', 'access')

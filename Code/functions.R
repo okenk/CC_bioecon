@@ -120,7 +120,7 @@ calc_var_cost <- function(log_avg_cost_per_trip, cost_cv, recruits, wt_at_rec, f
   return(profit)
 }
 
-
+# currently unused
 calc_var_cost_groundfish <- function(log_avg_cost_per_trip, cost_cv, N1, bio_init, fishing_season, in_season_dpltn, 
                           fleet_size, fixed_costs, catchability, price, tac = NA, groundfish) {
   quantiles <- seq(1/(fleet_size+1), fleet_size/(fleet_size+1), length.out = fleet_size)
@@ -295,7 +295,7 @@ run_sim <- function(sim_pars, seed = NA, long_output = TRUE) {
         # Adjust crab stuff because it has a demand function. Baseline price is hard-coded in right now...
         price_mat[wk+1,'crab'] <- ifelse(sum(Catch['crab',yr,wk,grep('crab', fleets)]) > crab_price_cutoff, 1,
                                          crab_price_pars[1] - crab_price_pars[2] * 
-                                           sum(Catch['crab',yr,wk,grep('crab', fleets)]) * wt_at_rec['crab',yr])
+                                           sum(Catch['crab',yr,wk,grep('crab', fleets)]))
 
         exp_rev[,,'crab'] <- N['crab',yr,wk] * wt_at_rec['crab',yr] * temp_catchability['crab'] *
           price_mat[wk+1,'crab'] * pop_seasons[[closures[yr]]]['crab', wk]
