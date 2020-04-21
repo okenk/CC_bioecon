@@ -11,4 +11,4 @@ scenarios=( 'synchrony' 'access' 'interaction')
 
 scenario=${scenarios[$SLURM_ARRAY_TASK_ID]}
 
-Rscript ~/CC_bioecon/Code/for_cluster/${scenario}_sims.R 1000
+Rscript ~/CC_bioecon/Code/for_cluster/${scenario}_sims.R 10000
