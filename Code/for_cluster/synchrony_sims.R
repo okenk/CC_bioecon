@@ -20,7 +20,7 @@ for(ii in 1:3) {
   set.seed(53209823)
   sim_pars$recruit_corr <- corr.par[ii]
   res.list[[as.character(corr.par[ii])]] <- replicate(nsims, run_sim(sim_pars=sim_pars, 
-                                                      long_output = FALSE))
+                                                      long_output = FALSE), simplify = FALSE)
   print(paste('scenario', ii))
 }
 print('sims done')

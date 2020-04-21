@@ -5,8 +5,16 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     summarize(median.rev.cv = median(revenue.cv)) %>%
     rename(!!sim.id := `get(sim.id)`)
   
+  temp <- access_tibbles$income.summary %>%
+    group_by(access, fleet, sim_number) %>%
+    summarize(profit.mn = mean(profit.mn),
+              profit.sd = mean(profit.sd), 
+              revenue.mn = mean(revenue.mn),
+              revenue.sd = mean(revenue.sd),
+              revenue.cv = mean(revenue.cv))
+  
   # Individual Revenue CV
-  to.save <- ggplot(income.summary) +
+  to.save <- ggplot(temp) +
     geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, nrow = 2) +
@@ -25,7 +33,7 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
          units = 'in', dpi = 500)
   
   # Individual Revenue SD
-  to.save <- ggplot(income.summary) +
+  to.save <- ggplot(temp) +
     geom_density(aes(x = revenue.sd, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, nrow = 2, scales = 'free_x') +
@@ -42,7 +50,7 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
          units = 'in', dpi = 500)
   
   # Individual Revenue Mean
-  to.save <- ggplot(income.summary) +
+  to.save <- ggplot(temp) +
     geom_density(aes(x = revenue.mn, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, nrow = 2, scales = 'free_x') +
@@ -60,7 +68,7 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
          units = 'in', dpi = 500)
   
   # Individual Profit SD
-  to.save <- ggplot(income.summary) +
+  to.save <- ggplot(temp) +
     geom_density(aes(x = profit.sd, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, scales = 'free') +
@@ -78,7 +86,7 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
          units = 'in', dpi = 500)
   
   # Individual Profit Mean
-  to.save <- ggplot(income.summary) +
+  to.save <- ggplot(temp) +
     geom_density(aes(x = profit.mn, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, scales = 'free_x') +

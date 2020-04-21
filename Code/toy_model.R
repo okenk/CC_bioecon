@@ -59,7 +59,7 @@ recruit_cv <- sqrt(log(0.6^2+1))
 recruit_ar <- c(.3,.3, .3)
 recruit_corr <- 0
 
-fixed_costs <- c(.0025, .0001, .00002)
+fixed_costs <- c(.0018, .0001, .00002) #c(.0025, .0001, .00002)
 cost_per_trip <- rep(NA, npops)
 cost_cv <- sqrt(log(.15^2+1))
 cost_corr <- 0.7
@@ -108,13 +108,16 @@ alpha_price <- 1 + beta_price * log(catchability['crab'] * avg_rec['crab'] * avg
 
 xx <- uniroot(calc_var_cost, interval = c(-20,0),
               cost_cv = cost_cv, recruits = avg_rec['crab'], wt_at_rec = 1, price = c(2,10), #price['crab'], c(alpha_price, beta_price),
-              fishing_season = pop_seasons[[1]]['crab',], in_season_dpltn = TRUE, fleet_size = 200, 
-              fixed_costs = fixed_costs['crab'], catchability = catchability['crab'], tac = NA)
+              fishing_season = pop_seasons[[1]]['crab',], in_season_dpltn = TRUE, 
+              fleet_size = sum(ships_per_fleet[grep('crab', names(ships_per_fleet))]), 
+              fixed_costs = fixed_costs['crab'], 
+              catchability = catchability['crab'], tac = NA)
 sim_pars$cost_per_trip['crab'] <- exp(xx$root)
 
 xx <- uniroot(calc_var_cost, interval = c(-20, 0),
               cost_cv = cost_cv, recruits = avg_rec['salmon'], wt_at_rec = 1, price = price['salmon'],
-              fishing_season = pop_seasons[[1]]['salmon',], in_season_dpltn = TRUE, fleet_size = 200, 
+              fishing_season = pop_seasons[[1]]['salmon',], in_season_dpltn = TRUE, 
+              fleet_size = sum(ships_per_fleet[grep('salmon', names(ships_per_fleet))]), 
               fixed_costs = fixed_costs['salmon'], catchability = catchability['salmon'], tac = salmon_tac_rule)
 sim_pars$cost_per_trip['salmon'] <- exp(xx$root)
 
@@ -185,7 +188,7 @@ R40 <- beverton_holt(B40*(1-h40), groundfish$steepness, groundfish$R0, groundfis
 N40 <- R40/(1-exp(-groundfish$M)*(1-h40))
 
 calc_groundfish_q <- function(log_q, wks_per_yr, target, nships) {
-  B <- 1
+  B <- 1 # if you set B to 1 can use harvest rate as target instead of actual yield
   q <- exp(log_q)
   Catch.per.boat <- 0
   for(wk in 1:wks_per_yr){
@@ -196,7 +199,8 @@ calc_groundfish_q <- function(log_q, wks_per_yr, target, nships) {
   return(Catch.per.boat * nships - target)
 }
 
-xx <- uniroot(calc_groundfish_q, interval = c(log(10^(-8)), log(.01)), wks_per_yr = 40, target = h40, nships = 200)
+xx <- uniroot(calc_groundfish_q, interval = c(log(10^(-8)), log(.01)), wks_per_yr = 40, target = h40, 
+              nships = sum(ships_per_fleet[grep('groundfish', names(ships_per_fleet))]))
 sim_pars$catchability['groundfish'] <- exp(xx$root)
 revenue <- price['groundfish'] * h40 * B40 / 200
 

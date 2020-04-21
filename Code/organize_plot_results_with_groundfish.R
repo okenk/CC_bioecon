@@ -124,7 +124,7 @@ rm(access, access_tibbles)
 gc()
 
 load('Data/access_df_10-8_1k.RData')
-make_half_baked_plots(access_tibbles, 'PICES', 'access_3_spp', 'access')
+make_half_baked_plots(access_tibbles, '10k', 'access_aggregated', 'access')
 
 load('Data/synchrony_10-8_1k.RData')
 sync_tibbles <- summarize_sim_results(synchrony, 'synchrony')
