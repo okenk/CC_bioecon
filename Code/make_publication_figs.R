@@ -3,14 +3,32 @@ library(stringr)
 library(getBestSpp)
 library(reshape2)
 library(beyonce)
+library(grid)
 library(gridExtra)
 
 source('Code/functions.R')
 source('Code/toy_model.R')
 
-load('Data/10k/access_df_10-8_1k.RData')
-load('Data/10k/sync_df_10-8_1k.RData')
-load('Data/10k/sync_access_df_10-8_1k.RData')
+load('Data/10k_5_20/access_df_10-8_1k.RData')
+load('Data/10k_5_20/sync_df_10-8_1k.RData')
+load('Data/10k_5_20/sync_access_df_10-8_1k.RData')
+
+fleet_distn <- list()
+fleet_distn$"easy access" <- c(25,25,25,109,109,109)
+fleet_distn$"even access" <- rep(67,6)
+fleet_distn$"hard access" <- c(109,109,109,25,25,25)
+nsims <- 50
+
+fifty.sims <- list()
+for(ii in 1:3) {
+  set.seed(83209)
+  sim_pars$ships_per_fleet <- fleet_distn[[ii]]
+  names(sim_pars$ships_per_fleet) <- fleets
+  sim_pars$nships <- max(fleet_distn[[ii]])
+  fifty.sims[[names(fleet_distn)[ii]]] <- replicate(nsims, run_sim(sim_pars, long_output = TRUE), 
+                                                  simplify = FALSE)
+  print(paste('scenario', ii))
+}
 
 make_individual_plots <- function(filename, df, pars_to_plot, xaxis_labs, experiment, facet_var, png_width) {
   if(length(pars_to_plot) != length(xaxis_labs)) {
@@ -138,8 +156,9 @@ dev.off()
 
 # broad summary table -----------------------------------------------------
 
-to.print <- matrix('', nrow = 8, ncol = 3, dimnames = list(rep('', 8), c('Mean revenue', 'Revenue CV', 
+to.print <- matrix('', nrow = 13, ncol = 3, dimnames = list(rep('', 13), c('Mean revenue', 'Revenue CV', 
                                                                          'Gini index')))
+# access
 temp <- access_tibbles$total.summary %>%
   pivot_wider(names_from = metric) %>%
   group_by(access) %>%
@@ -159,6 +178,7 @@ temp <- access_tibbles$gini.index %>%
   summarize(gini = mean(gini))
 to.print[2:4,3] <- round(temp$gini, 2)
 
+# synchrony
 temp <- sync_tibbles$total.summary %>%
   pivot_wider(names_from = metric) %>%
   group_by(synchrony) %>%
@@ -176,6 +196,26 @@ temp <- sync_tibbles$gini.index %>%
   group_by(synchrony) %>%
   summarize(gini = mean(gini))
 to.print[6:8,3] <- round(temp$gini, 2)
+
+# synchrony access
+temp <- sync_access_tibbles$total.summary %>%
+  pivot_wider(names_from = metric) %>%
+  group_by(sync_access) %>%
+  summarize(revenue.mn = mean(revenue.mn), revenue.cv = mean(revenue.cv))
+
+to.print[10:13, 1:2] <- temp %>%
+  select(-sync_access) %>%
+  as.matrix %>%
+  round(2)
+
+rownames(to.print)[9] <- 'Synchrony & Access'
+rownames(to.print)[10:13] <- str_c('   ', c('Asynchronous easy access', 'Synchronous easy access', 
+                                            'Asynchronous hard access', 'Synchronous hard access'))
+
+temp <- sync_access_tibbles$gini.index %>%
+  group_by(sync_access) %>%
+  summarize(gini = mean(gini))
+to.print[10:13,3] <- round(temp$gini, 2)
 
 write.csv(to.print, file = 'Figures/pub_figs/results_summary.csv')
 
@@ -212,15 +252,33 @@ sync_tibbles$income.summary %>%
   NULL
 dev.off()
 
+# groundfish biomass check ------------------------------------------------
+names(fifty.sims[['even access']]) <- 1:50
 
-# Example sim -------------------------------------------------------------
+to.save <- map_dfr(.x = fifty.sims[['even access']], function(.x) .x$groundfish_bio[,1]) %>%
+  mutate(year = 1:50) %>%
+  pivot_longer(cols = -year, names_to = 'sim', values_to = 'biomass') %>%
+  filter(year < 50) %>%
+  ggplot() +
+  geom_line(aes(x = year, y = biomass, group = sim)) +
+  stat_smooth(aes(x = year, y = biomass)) +
+  geom_hline(aes(yintercept = mean(biomass)), col = 'red') +
+  ggsidekick::theme_sleek(base_size = 12) +
+  NULL
+ggsave('Figures/pub_figs/groundfish_check.png', height = 6, width = 7, units = 'in', dpi = 500)
 
-set.seed(83209)
-one.sim <- run_sim(sim_pars)
-catch.df <- apply(one.sim$Catch, 1:3, sum) %>%
-  melt(value.name = 'Catch') %>%
-  left_join(melt(one.sim$rec_devs, value.name = 'rec_devs')) %>%
-  as_tibble
+
+# Catch over year ---------------------------------------------------------
+
+catch.df <- map_dfr(fifty.sims, function(scenario) apply(scenario[[1]]$Catch, 1:3, sum) %>%
+                      melt(value.name = 'Catch') %>%
+                      left_join(melt(scenario[[1]]$rec_devs, value.name = 'rec_devs')) %>%
+                      as_tibble, 
+                    .id = 'scenario') %>%
+  mutate(quartile = case_when(yr <= 12 ~ 1,
+                              yr <= 25 ~ 2,
+                              yr <= 37 ~ 3,
+                              TRUE ~ 4))
 
 yrs <- catch.df %>%
   group_by(yr) %>%
@@ -234,35 +292,16 @@ to.save <- catch.df %>%
   geom_line(aes(x = wk, y = Catch, group = yr), alpha = 0.25, lwd = 0.1) +
   geom_line(data = filter(catch.df, yr %in% yrs),
             aes(x = wk, y = Catch, group = yr, col = factor(yr)), lwd = 1, show.legend = FALSE) + 
-  facet_wrap(~str_to_title(spp), nrow = 1, scales = 'free_y') +
+  facet_grid(str_to_title(spp) ~ str_to_title(scenario), scales = 'free_y') +
   ggsidekick::theme_sleek(base_size = 12) +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        strip.background = element_rect(fill="white")) +
+  # theme(panel.grid.major = element_blank(),
+  #       panel.grid.minor = element_blank(),
+  #       strip.background = element_rect(fill="white")) +
   xlab('Week of year') +
-  ylab('Catch (weight)') +
-  scale_color_manual(values = beyonce_palette(127, n = 6)[2:6]) +
+  ylab('Catch (numbers)') +
   NULL
-ggsave(filename = 'Figures/pub_figs/catch_ex.png', plot = to.save, height = 4, width = 7, units = 'in', 
-       dpi = 500)
 
-
-# groundfish biomass check ------------------------------------------------
-
-set.seed(83209)
-hundred.sims <- map(1:100, run_sim, sim_pars = sim_pars)
-names(hundred.sims) <- 1:100
-to.save <- map_dfr(.x = hundred.sims, function(.x) .x$groundfish_bio[,1]) %>%
-  mutate(year = 1:50) %>%
-  pivot_longer(cols = -year, names_to = 'sim', values_to = 'biomass') %>%
-  filter(year < 50) %>%
-  ggplot() +
-  geom_line(aes(x = year, y = biomass, group = sim)) +
-  stat_smooth(aes(x = year, y = biomass)) +
-  geom_hline(aes(yintercept = mean(biomass)), col = 'red') +
-  ggsidekick::theme_sleek(base_size = 12) +
-  NULL
-ggsave('Figures/pub_figs/groundfish_check.png', height = 6, width = 7, units = 'in', dpi = 500)
+ggsave('Figures/pub_figs/catch_dynamics.png', height = 6, width = 7, units = 'in', dpi = 500)
 
 
 # Old plot code -----------------------------------------------------------
