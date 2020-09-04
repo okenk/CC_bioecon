@@ -1,33 +1,32 @@
 make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
   list2env(tibble.list, sys.frame(sys.nframe()))
+  theme_set(ggsidekick::theme_sleek(base_size = 14)) 
   
   medians <- group_by(income.summary, get(sim.id), fleet) %>%
     summarize(median.rev.cv = median(revenue.cv)) %>%
     rename(!!sim.id := `get(sim.id)`)
   
-  temp <- access_tibbles$income.summary %>%
-    group_by(access, fleet, sim_number) %>%
+  temp <- tibble.list$income.summary %>%
+    mutate(fleet = factor(str_to_title(fleet)),
+           fleet = factor(fleet,levels(fleet)[c(1,6,5,3,2,4)])) %>%
+    group_by(get(sim.id), fleet, sim_number) %>%
     summarize(profit.mn = mean(profit.mn),
               profit.sd = mean(profit.sd), 
               revenue.mn = mean(revenue.mn),
               revenue.sd = mean(revenue.sd),
-              revenue.cv = mean(revenue.cv))
-  
+              revenue.cv = mean(revenue.cv)) %>%
+    rename(!!sim.id := `get(sim.id)`) 
+
   # Individual Revenue CV
   to.save <- ggplot(temp) +
     geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, nrow = 2) +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     xlab('Revenue CV') +
     xlim(0,2) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
-    geom_vline(aes(xintercept = median.rev.cv, col = get(sim.id)), data = medians) +
     NULL 
   ggsave(filename = paste0('Figures/', folder, '/', sim.file.name, '_rev.png'), plot = to.save, height = 4, width = 9,
          units = 'in', dpi = 500)
@@ -37,10 +36,6 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     geom_density(aes(x = revenue.sd, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, nrow = 2, scales = 'free_x') +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     xlab('Revenue SD') +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
     scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
@@ -54,10 +49,6 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     geom_density(aes(x = revenue.mn, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, nrow = 2, scales = 'free_x') +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     xlab('Mean revenue') +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
@@ -72,10 +63,6 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     geom_density(aes(x = profit.sd, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, scales = 'free') +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     xlab('Profit SD') +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
@@ -90,10 +77,6 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     geom_density(aes(x = profit.mn, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
     facet_wrap(~fleet, scales = 'free_x') +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     xlab('Mean profit') +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
@@ -107,10 +90,6 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
   to.save <- ggplot(income.summary) +
     geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)),
                  alpha = .25) +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     xlab('Revenue CV') +
     xlim(0,2) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
@@ -124,10 +103,6 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
   to.save <- ggplot(gini.index) +
     geom_density(aes(x = gini, col = get(sim.id), fill = get(sim.id)), alpha = .25) +
     guides(fill = guide_legend(title = sim.id)) +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     xlab('Gini Index') +
     xlim(0,1) +
     guides(col = guide_legend(title = sim.id), fill = guide_legend(title = sim.id)) +
@@ -142,10 +117,6 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     geom_density(aes(x = value, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
     facet_wrap(~metric, scales = 'free') +
     guides(fill = guide_legend(title = sim.id), col = guide_legend(title = sim.id)) +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     scale_color_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     scale_fill_manual(values = wesanderson::wes_palette('Zissou1', n = 5)[c(5,3,1)]) +
     NULL 
@@ -169,11 +140,7 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     geom_density(aes(x = revenue.mn, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
     facet_wrap(~spp, nrow = 1, scales = "free") +
     guides(fill = guide_legend(title = sim.id), col = guide_legend(title = sim.id)) +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white"),
-          legend.text = element_text(color = "white"),
+    theme(legend.text = element_text(color = "white"),
           legend.title = element_text(color = "white"),
           legend.key = element_rect(fill = "white")) + 
     scale_color_discrete(guide = guide_legend(override.aes = list(col = "white", fill = 'white'))) +
@@ -182,20 +149,12 @@ make_half_baked_plots <- function(tibble.list, folder, sim.file.name, sim.id) {
     geom_density(aes(x = revenue.sd, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
     facet_wrap(~spp, nrow = 1, scales = "free") +
     guides(fill = guide_legend(title = sim.id), col = guide_legend(title = sim.id)) +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white")) +
     NULL 
   p.cv <- ggplot(revenue.df.spp) +
     geom_density(aes(x = revenue.cv, col = get(sim.id), fill = get(sim.id)), alpha = 0.25) +
     facet_wrap(~spp, nrow = 1, scales = "free") +
     guides(fill = FALSE, col = FALSE) +
-    theme_bw(base_size = 14) +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white"),
-          legend.text = element_text(color = "white"),
+    theme(legend.text = element_text(color = "white"),
           legend.title = element_text(color = "white"),
           legend.key = element_rect(fill = "white")) + 
     scale_color_discrete(guide = guide_legend(override.aes = list(col = "white", fill = 'white'))) +
