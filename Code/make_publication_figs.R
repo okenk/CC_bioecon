@@ -2,7 +2,6 @@ library(tidyverse)
 library(stringr)
 library(getBestSpp)
 library(reshape2)
-library(beyonce)
 library(grid)
 library(gridExtra)
 
@@ -332,6 +331,7 @@ sync_tibbles$income.summary %>%
   # xlab('Revenue CV quantile') +
   ylab('Portfolio benefit') +
   # labs(col = 'Synchrony') +
+  theme(legend.position = 'bottom') +
   NULL
 dev.off()
 
@@ -390,6 +390,10 @@ to.save <- catch.df %>%
   #       strip.background = element_rect(fill="white")) +
   xlab('Week of year') +
   ylab('Catch (numbers)') +
+  scale_color_manual(values = LaCroixColoR::lacroix_palette('PeachPear')[c(1,2,4,5,6)]) +
+  #scale_colour_manual(values = beyonce::beyonce_palette(127)[-1]) +
+  #ghibli::scale_color_ghibli_d(name = 'YesterdayMedium', direction = 1) +
+  #scale_color_manual(values = wesanderson::wes_palette('FantasticFox1')) +
   NULL
 
 ggsave('Figures/pub_figs/catch_dynamics.png', height = 6, width = 7, units = 'in', dpi = 500)
